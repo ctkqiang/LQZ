@@ -1,0 +1,69 @@
+# Build directories
+build/
+Debug/
+Release/
+x64/
+[Bb]in/
+[Oo]bj/
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.out
+*.app
+*.dll
+*.dylib
+*.so
+
+# IDE specific files
+.vscode/
+.idea/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.xcodeproj/
+*.xcworkspace/
+.DS_Store
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# Dependencies
+vendor/
+lib/
+libs/
+
+# Generated data
+Datas/
+*.ab
+*.db
+*.log
+
+# Temporary files
+*.swp
+*~
+.*.sw?
+.~lock.*
+
+# Environment files
+.env
+.env.local
+
+# Debug files
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Package files
+*.tar.gz
+*.zip
+*.7z
+*.rar
+
+# Project specific
+Phone_dump_sms.ab

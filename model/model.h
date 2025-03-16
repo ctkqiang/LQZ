@@ -14,6 +14,7 @@ class Model {
 
    public:
     bool CheckDevice();
+    void CheckAdb();
     void DumpSMS();
     void DumpPhotos();
     void DumpDownloads();
@@ -22,9 +23,22 @@ class Model {
     void Dumpfiles();
 
     void ConnectWirelessly();
-    
+
     void Shell(std::string cmd);
     std::string GetDeviceModel() const;
+
+    void DumpCallLogs();
+    void DumpVideos();
+    void DumpApks();
+    void DumpDocuments();
+    void ExtractSensitiveInfo();
+
+    void GetWifiAddress();
+    void DumpSystemInfo();
+    void ListPackages();
+    void ExtractWhatsApp();
+    void ExtractBrowserData();
+    void ExtractNotifications();
 };
 
 #endif

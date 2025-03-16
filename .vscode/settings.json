@@ -59,6 +59,10 @@
         "unordered_map": "cpp",
         "variant": "cpp",
         "vector": "cpp",
-        "algorithm": "cpp"
+        "algorithm": "cpp",
+        "charconv": "cpp",
+        "forward_list": "cpp",
+        "fstream": "cpp",
+        "chrono": "cpp"
     }
 }
