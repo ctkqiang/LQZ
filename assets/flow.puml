@@ -1,0 +1,73 @@
+@startuml 灵取证系统流程图
+
+skinparam ParticipantPadding 20
+skinparam BoxPadding 10
+skinparam SequenceGroupBodyBackgroundColor transparent
+
+actor 用户 as User
+participant "视图层\n(View)" as View
+participant "控制器\n(Controller)" as Controller
+participant "模型层\n(Model)" as Model
+participant "Android设备" as Device
+database "数据存储" as Storage
+
+box "初始化阶段" #LightBlue
+    User -> View: 启动程序
+    View -> Controller: 初始化系统
+    Controller -> Model: 检查ADB环境
+    Model -> Model: CheckAdb()
+    Model --> Controller: 返回ADB状态
+    Controller -> Model: 检查设备连接
+    Model -> Device: 尝试连接设备
+    Model --> Controller: 返回设备状态
+    Controller -> View: 显示设备信息
+end box
+
+box "操作选择阶段" #LightYellow
+    User -> View: 输入命令
+    View -> Controller: 处理命令
+    Controller -> Controller: 验证命令有效性
+end box
+
+box "数据提取阶段" #LightGreen
+    alt 通话记录导出
+        Controller -> Model: DumpCallLogs()
+        Model -> Device: 提取通话记录
+        Model -> Storage: 保存数据
+    else 短信导出
+        Controller -> Model: DumpSMS()
+        Model -> Device: 提取短信数据
+        Model -> Storage: 保存数据
+    else 照片导出
+        Controller -> Model: DumpPhotos()
+        Model -> Device: 提取照片文件
+        Model -> Storage: 保存数据
+    else 应用导出
+        Controller -> Model: DumpApks()
+        Model -> Device: 提取应用数据
+        Model -> Storage: 保存数据
+    end
+end box
+
+box "结果反馈阶段" #LightPink
+    Model --> Controller: 返回操作结果
+    Controller -> View: 显示执行状态
+    View --> User: 展示操作结果
+end box
+
+box "错误处理" #LightGray
+    Model -> Controller: 抛出异常
+    Controller -> View: 显示错误信息
+    View --> User: 展示错误提示
+end box
+
+box "程序终止" #LightCoral
+    User -> View: 退出命令
+    View -> Controller: 处理退出请求
+    Controller -> Model: 清理资源
+    Model -> Device: 断开连接
+    Controller -> View: 确认退出
+    View --> User: 程序终止
+end box
+
+@enduml
