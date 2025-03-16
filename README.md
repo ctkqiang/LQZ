@@ -7,10 +7,15 @@
     <img src="https://img.shields.io/badge/许可证-Mulan PSL-green.svg" alt="license"/>
     <img src="https://img.shields.io/badge/平台-MacOS%20%7C%20Linux | Windows-White.svg" alt="platform"/>
     <img src="https://img.shields.io/badge/语言-C++-red.svg" alt="language"/>
-    
   </p>
-
+  
+  <p>
+    <a href="https://github.com/ctkqiang/LQZ/releases/tag/1.0.0">
+      <img src="https://img.shields.io/badge/下载-最新版本-.svg" alt="download"/>
+    </a>
+  </p>
 </div>
+
 
 ## 简介
 
@@ -167,6 +172,46 @@ sudo apt install adb android-tools-adb android-tools-fastboot
 | WhatsApp 数据 | 提取 WhatsApp 聊天记录和媒体文件             | `12` |
 | 浏览器数据    | 提取浏览器历史记录和缓存                     | `13` |
 | 通知记录      | 导出设备通知历史                             | `14` |
+
+
+## 运行方法
+
+### 下载安装
+
+1. 从 [GitHub Releases](https://github.com/ctkqiang/LQZ/releases/tag/1.0.0) 下载最新版本
+2. 验证下载文件的 SHA-256 校验和，确保文件完整性
+3. 解压下载的压缩包到本地目录
+
+### 程序运行
+
+1. 打开终端，进入程序目录：
+I'll add the running instructions to your README.md:
+
+
+
+## 运行方法
+
+1. 下载并解压软件包后，进入程序目录：
+2. 赋予执行权限：
+
+```bash
+chmod +x phone_forensic
+```
+
+3. 运行程序：
+
+```bash
+./phone_forensic
+```
+
+4. 按照程序提示输入相应的命令号码（1-14）执行对应功能。
+
+注意：首次运行时，请确保：
+
+- Android 设备已开启 USB 调试模式
+- 设备已通过 USB 连接到电脑
+- ADB 服务正常运行
+- 具有足够的存储空间
 
 
 ## 注意事项
