@@ -1,0 +1,30 @@
+#ifndef MODEL_H
+#define MODEL_H
+
+#include <filesystem>
+#include <regex>
+#include <string>
+
+namespace fs = std::filesystem;
+
+class Model {
+    std::string deviceModel;
+
+    std::string executeCommand(const std::string& cmd);
+
+   public:
+    bool CheckDevice();
+    void DumpSMS();
+    void DumpPhotos();
+    void DumpDownloads();
+    void DumpContacts();
+    void DumpMessage();
+    void Dumpfiles();
+
+    void ConnectWirelessly();
+    
+    void Shell(std::string cmd);
+    std::string GetDeviceModel() const;
+};
+
+#endif
