@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="400" height="400" viewBox="0 0 400 400" xmlns="http://www.w3.org/2000/svg">
+    <defs>
+        <!-- Glowing Effect -->
+        <filter id="glow" x="-50%" y="-50%" width="200%" height="200%">
+            <feGaussianBlur stdDeviation="4" result="coloredBlur"/>
+            <feMerge>
+                <feMergeNode in="coloredBlur"/>
+                <feMergeNode in="SourceGraphic"/>
+            </feMerge>
+        </filter>
+
+        <!-- Data Flow Path -->
+        <path id="dataPath" d="M120,200 C180,200 220,200 280,200">
+            <animate attributeName="d"
+                values="M120,200 C180,200 220,200 280,200;
+                       M120,190 C180,210 220,190 280,200;
+                       M120,200 C180,200 220,200 280,200"
+                dur="2s"
+                repeatCount="indefinite"/>
+        </path>
+    </defs>
+
+    <!-- Background -->
+    <circle cx="200" cy="200" r="180" fill="#1a1a1a"/>
+    <circle cx="200" cy="200" r="175" fill="none" stroke="#333" stroke-width="2">
+        <animate attributeName="stroke-dasharray"
+            values="0,1000;1000,0"
+            dur="30s"
+            repeatCount="indefinite"/>
+    </circle>
+
+    <!-- Android Device (Larger) -->
+    <g transform="translate(240,140) scale(1.6)">
+        <path d="M15,5 h30 a5,5 0 0 1 5,5 v50 a5,5 0 0 1 -5,5 h-30 a5,5 0 0 1 -5,-5 v-50 a5,5 0 0 1 5,-5" 
+              fill="#3DDC84" stroke="#fff" stroke-width="2" filter="url(#glow)">
+            <animate attributeName="opacity"
+                values="0.8;1;0.8"
+                dur="2s"
+                repeatCount="indefinite"/>
+        </path>
+        <!-- Android Logo -->
+        <circle cx="25" cy="20" r="2" fill="white"/>
+        <circle cx="35" cy="20" r="2" fill="white"/>
+        <path d="M20,25 h20 v15 a10,10 0 0 1 -20,0 v-15" fill="#3DDC84"/>
+    </g>
+
+    <!-- USB Symbol (Larger) -->
+    <g transform="translate(80,140) scale(1.6)">
+        <rect x="10" y="10" width="40" height="25" rx="5" 
+              fill="#4169E1" stroke="#fff" stroke-width="2" filter="url(#glow)">
+            <animate attributeName="opacity"
+                values="0.8;1;0.8"
+                dur="2s"
+                repeatCount="indefinite"/>
+        </rect>
+        <circle cx="25" cy="22.5" r="5" fill="white"/>
+        <rect x="35" y="17.5" width="5" height="10" fill="white"/>
+    </g>
+
+    <!-- Multiple Binary Data Streams -->
+    <g>
+        <!-- Stream 1 -->
+        <text font-family="monospace" font-size="16" fill="#00ff00" filter="url(#glow)">
+            <textPath href="#dataPath" startOffset="0%">
+                <animate attributeName="startOffset"
+                    values="0%;100%"
+                    dur="3s"
+                    repeatCount="indefinite"/>
+                10101010
+            </textPath>
+        </text>
+        <!-- Stream 2 -->
+        <text font-family="monospace" font-size="16" fill="#00ff00" filter="url(#glow)">
+            <textPath href="#dataPath" startOffset="33%">
+                <animate attributeName="startOffset"
+                    values="33%;133%"
+                    dur="3s"
+                    repeatCount="indefinite"/>
+                01010101
+            </textPath>
+        </text>
+        <!-- Stream 3 -->
+        <text font-family="monospace" font-size="16" fill="#00ff00" filter="url(#glow)">
+            <textPath href="#dataPath" startOffset="66%">
+                <animate attributeName="startOffset"
+                    values="66%;166%"
+                    dur="3s"
+                    repeatCount="indefinite"/>
+                11001100
+            </textPath>
+        </text>
+    </g>
+
+    <!-- Scanning Effect -->
+    <rect x="0" y="0" width="400" height="400" fill="url(#scanGradient)">
+        <animate attributeName="opacity"
+            values="0;0.15;0"
+            dur="3s"
+            repeatCount="indefinite"/>
+    </rect>
+
+    <!-- Enhanced Scanning Gradient -->
+    <defs>
+        <linearGradient id="scanGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#00ff00;stop-opacity:0"/>
+            <stop offset="50%" style="stop-color:#00ff00;stop-opacity:0.2"/>
+            <stop offset="100%" style="stop-color:#00ff00;stop-opacity:0"/>
+            <animate attributeName="y1" values="0%;100%;0%" dur="3s" repeatCount="indefinite"/>
+            <animate attributeName="y2" values="100%;200%;100%" dur="3s" repeatCount="indefinite"/>
+        </linearGradient>
+    </defs>
+
+    <!-- Circular Progress Ring -->
+    <circle cx="200" cy="200" r="190" fill="none" stroke="#00ff00" stroke-width="1" stroke-dasharray="3,3">
+        <animateTransform attributeName="transform"
+            type="rotate"
+            from="0 200 200"
+            to="360 200 200"
+            dur="20s"
+            repeatCount="indefinite"/>
+    </circle>
+</svg>
