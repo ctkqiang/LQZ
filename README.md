@@ -11,7 +11,7 @@
   
   <p>
     <a href="https://github.com/ctkqiang/LQZ/releases/tag/1.0.0">
-      <img src="https://img.shields.io/badge/下载-最新版本-.svg" alt="download"/>
+      <img src="https://img.shields.io/badge/下载-最新版本-blue.svg" alt="download"/>
     </a>
   </p>
 </div>
