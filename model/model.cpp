@@ -508,3 +508,11 @@ void Model::ExtractNotifications() {
         "adb shell dumpsys notification > "
         "Datas/Notifications/notifications.log");
 }
+
+void Model::DumpSysFromSpecificPackage(std::string PACKAGE_NAME) {
+    fs::create_directories("Datas/SysFromSpecificPackage");
+
+    system(("adb shell dumpsys package " + PACKAGE_NAME +
+            "> Datas/SysFromSpecificPackage/" + PACKAGE_NAME + ".log")
+               .c_str());
+}

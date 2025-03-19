@@ -152,6 +152,10 @@ void Controller::Run() {
                 model.ExtractNotifications();
                 view.ShowSuccess("通知记录已导出");
             }
+
+            else if (command == "15" || command == "dumpsys") {
+            }
+
             // 如果输入了不认识的命令，View 小助手会用红色字体提醒哟
             else {
                 view.ShowError("未知命令，输入 'help' 或 '?' 查看可用命令");

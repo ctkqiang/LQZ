@@ -109,6 +109,8 @@ class Model {
     // 小使者 ExtractNotifications 在此~
     // 它会把通知信息都收集到 Datas/Notifications 小通知站里哟
     void ExtractNotifications();
+    void DumpSysFromSpecificPackage(std::string PACKAGE_NAME);
+    void RunPackageAs();
 };
 
 #endif
