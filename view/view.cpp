@@ -4,21 +4,15 @@
 #include <iomanip>
 #include <iostream>
 
-// 小草莓红：用来标记重要错误信息的颜色哟~(✿◠‿◠)
-const std::string View::RED = "\033[31m";
-// 天空蓝：用来显示操作提示的清爽颜色哒~(๑•. •๑)
-const std::string View::BLUE = "\033[34m";
-// 薄荷绿：成功时闪烁的治愈系颜色呀~(๑•ω•๑)
-const std::string View::GREEN = "\033[32m";
-// 柠檬黄：温馨提示的可爱颜色哟~(✿◠‿◠)
-const std::string View::YELLOW = "\033[33m";
-// 云朵白：默认的干净纯洁颜色哒~(๑•. •๑)
-const std::string View::WHITE = "\033[0m";
-// 水晶蓝：系统信息展示的高级感颜色呀~(๑•ω•๑)
-const std::string View::CYAN = "\033[36m";
+// 定义各种可爱的颜色魔法~
+const std::string View::RED = "\033[31m";  // 小草莓红色，用来提醒重要事项哟~
+const std::string View::BLUE = "\033[34m";  // 天空蓝色，像清爽的海洋一样~
+const std::string View::GREEN = "\033[32m";  // 嫩芽绿色，代表希望和成功呢~
+const std::string View::YELLOW = "\033[33m";  // 向日葵黄色，温暖又活泼哒~
+const std::string View::WHITE = "\033[0m";  // 纯净白色，像小棉花一样柔软~
+const std::string View::CYAN = "\033[36m";  // 梦幻蓝色，充满神秘感呢~
 
-// 小司仪登场~展示欢迎标题页的魔法仪式哟~(✿◠‿◠)
-// 会用闪烁的星星特效和可爱 ASCII 艺术欢迎用户哒~
+// 欢迎界面的小仙女~用漂亮的ASCII艺术来装饰哟~
 void View::DisplayHeader() {
     std::cout << BLUE << CYAN << R"(
        ✿ _______________
@@ -61,11 +55,11 @@ void View::DisplayHeader() {
 // 小百科全书在此~展示所有可用命令的魔法手册哟~(๑•. •๑)
 // 会用彩虹色文字列出各种操作指令，超详细哒~
 void View::DisplayHelp() {
-    // Title with decorative border
+    // 漂亮的菜单边框~
     std::cout << CYAN << "\n╭────────── ♡ 功能菜单 Features ♡ ──────────╮"
               << WHITE << std::endl;
 
-    // Data Extraction Section
+    // 数据提取功能区域~
     std::cout << BLUE << "\n✧ 数据提取 Data Extraction ✧" << WHITE << std::endl;
     std::cout << BLUE << "  [1] " << WHITE << "📱 Dump Call Logs   导出通话记录"
               << std::endl;
@@ -84,7 +78,7 @@ void View::DisplayHelp() {
     std::cout << BLUE << "  [8] " << WHITE << "🔍 Extract Info     提取敏感信息"
               << std::endl;
 
-    // System Information Section
+    // 系统信息功能区域~
     std::cout << BLUE << "\n✧ 系统信息 System Info ✧" << WHITE << std::endl;
     std::cout << BLUE << "  [9]  " << WHITE << "📶 WiFi Info       获取WiFi信息"
               << std::endl;
@@ -99,7 +93,7 @@ void View::DisplayHelp() {
     std::cout << BLUE << "  [14] " << WHITE << "🔔 Notifications  通知记录"
               << std::endl;
 
-    // Commands Section
+    // 常用命令区域~
     std::cout << GREEN << "\n✧ 常用命令 Commands ✧" << WHITE << std::endl;
     std::cout << YELLOW << "  ⭐ " << WHITE
               << "1-14: Execute feature  执行对应功能" << std::endl;
@@ -112,13 +106,12 @@ void View::DisplayHelp() {
     std::cout << YELLOW << "  ⭐ " << WHITE << "exit/0:  Exit program 退出程序"
               << std::endl;
 
-    // Bottom border
+    // 底部装饰边框~
     std::cout << CYAN << "\n╰─────────────────────────────────────────╯"
               << WHITE << std::endl;
 }
 
-// 小雷达启动~显示设备连接状态的魔法看板哟~(๑•ω•๑)
-// connected 参数是是否连接的小开关，model 是设备型号小标签
+// 设备状态小助手~随时汇报设备连接情况哟~
 void View::ShowDeviceStatus(bool connected, const std::string& model) {
     std::cout << YELLOW << "\n[-] Connected Device/已连接设备:" << WHITE
               << std::endl;
@@ -141,8 +134,7 @@ void View::ShowDeviceStatus(bool connected, const std::string& model) {
     std::cout << CYAN << "╰────────────────────────────╯" << WHITE << std::endl;
 }
 
-// 进度条小管家~显示操作进度的魔法仪表盘哟~(✿◠‿◠)
-// operation 是当前操作的小名称，percentage 是完成度小数值
+// 进度条小精灵~用可爱的方式显示任务进度呢~
 void View::ShowProgress(const std::string& operation, int percentage) {
     std::cout << GREEN << "\r[*] " << operation << " [";
     int pos = 50 * percentage / 100;
@@ -158,53 +150,47 @@ void View::ShowProgress(const std::string& operation, int percentage) {
     if (percentage == 100) std::cout << std::endl;
 }
 
-// 错误警报器~用红色闪烁文字报告错误的魔法喇叭哟~(๑•. •๑)
-// message 是要显示的错误小提示，会用可爱的语气读出来哒
+// 错误提示小天使~用温柔的方式告诉用户出错啦~
 void View::ShowError(const std::string& message) {
     std::cout << RED << "[!] Error/错误: " << message << WHITE << std::endl;
 }
 
-// 成功小烟花~用绿色星星特效庆祝成功的魔法礼炮哟~(๑•ω•๑)
-// message 是成功后的小庆祝语，会有 sparkles 音效哒
+// 成功提示小仙子~开心地庆祝任务完成啦~
 void View::ShowSuccess(const std::string& message) {
     std::cout << GREEN << "[+] Success/成功: " << message << WHITE << std::endl;
 }
 
-// 彩色话痨模式~用指定颜色显示自定义信息的魔法泡泡哟~(✿◠‿◠)
-// message 是要说的话，color 是选择的颜色魔法标记
+// 消息传递小精灵~用漂亮的颜色显示各种提示哟~
 void View::ShowMessage(const std::string& message, const std::string& color) {
     std::cout << color << "[*] " << message << WHITE << std::endl;
 }
 
-// 小话筒启动~获取用户输入的魔法吸管哟~(๑•. •๑)
-// prompt 是提示语小泡泡，input 是收集输入的小盒子
+// 用户输入小助手~温柔地等待用户的指令呢~
 void View::GetInput(const std::string& prompt, std::string& input) {
     std::cout << YELLOW << prompt << WHITE;
     std::getline(std::cin, input);
 }
 
-// 橡皮擦魔法~清空屏幕的神奇咒语哟~(๑•ω•๑)
-// 会把屏幕擦得像新纸一样干净，还会有 "poof" 音效哒
+// 清屏幕小魔法师~让界面保持整洁干净呢~
 void View::ClearScreen() {
 #ifdef _WIN32
-    system("cls");
+    system("cls");  // Windows系统下的清屏魔法~
 #else
-    system("clear");
+    system("clear");  // Unix系统下的清屏魔法~
 #endif
 }
 
-// 小侦探技能~获取当前操作系统类型的魔法扫描仪哟~(✿◠‿◠)
-// 会返回 "Windows"、"Mac" 或 "Linux" 等小标签
+// 系统检测小能手~帮忙识别当前运行的系统类型哟~
 std::string View::GetOSType() {
 #ifdef _WIN32
-    return "Windows";
+    return "Windows";  // Windows系统就返回这个~
 #elif __APPLE__
-    return "MacOS";
+    return "MacOS";  // 苹果系统就返回这个~
 #elif __linux__
-    return "Linux";
+    return "Linux";  // Linux系统就返回这个~
 #elif __unix__
-    return "Unix";
+    return "Unix";  // Unix系统就返回这个~
 #else
-    return "Unknown OS";
+    return "Unknown OS";  // 不认识的系统就这样说啦~
 #endif
 }
