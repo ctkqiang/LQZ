@@ -9,6 +9,7 @@
 #include <fstream>
 #include <iostream>
 #include <regex>
+#include <vector>
 
 // 呐呐~这个 `ADB_CONNECT`
 // 呀，就像是一座神奇的桥梁，它能让我们的电脑和安卓设备手牵手呢 (✿◠‿◠)
@@ -515,4 +516,68 @@ void Model::DumpSysFromSpecificPackage(std::string PACKAGE_NAME) {
     system(("adb shell dumpsys package " + PACKAGE_NAME +
             "> Datas/SysFromSpecificPackage/" + PACKAGE_NAME + ".log")
                .c_str());
+}
+
+void Model::RunApkTool(std::string APK_FILE) {
+    std::string line;
+    int line_num = 0;
+
+    std::string decompiled_dir = APK_FILE.substr(0, APK_FILE.find_last_of("."));
+    std::string manifest_path = decompiled_dir + "/AndroidManifest.xml";
+    std::string strings_path = decompiled_dir + "/res/values/strings.xml";
+    std::string output_file = APK_FILE + "_敏感数据泄漏.log";
+
+    std::vector<std::string> keywords = {
+        "token", "key", "firebase", "secret", "public",
+        "aws",   "api", "tencent",  "auth",
+    };
+
+    std::cout << "🏗️ 正在解包 APK..." << std::endl;
+    system(("apktool d -f " + APK_FILE + " -o " + decompiled_dir).c_str());
+
+    std::cout << "🔍 正在扫描敏感关键词..." << std::endl;
+
+    std::ofstream out(output_file);
+    if (!out.is_open()) {
+        std::cerr << "❌ 无法打开输出文件: " << output_file << std::endl;
+        return;
+    }
+
+    auto scan_file = [&](const std::string& path) {
+        std::ifstream in(path);
+        if (!in.is_open()) {
+            std::cerr << "⚠️ 无法打开文件: " << path << std::endl;
+            return;
+        }
+
+        while (std::getline(in, line)) {
+            ++line_num;
+            for (const auto& kw : keywords) {
+                if (line.find(kw) != std::string::npos) {
+                    out << "[文件: " << path << "] 第 " << line_num
+                        << " 行包含 [" << kw << "]: " << line << "\n";
+                    break;
+                }
+            }
+        }
+
+        in.close();
+    };
+
+    scan_file(manifest_path);
+    scan_file(strings_path);
+
+    out.close();
+
+    std::cout << "✅ 扫描完成，结果已写入: " << output_file << std::endl;
+}
+
+bool ContainsAny(const std::string& line,
+                 const std::vector<std::string>& keywords) {
+    for (const auto& keyword : keywords) {
+        if (line.find(keyword) != std::string::npos) {
+            return true;
+        }
+    }
+    return false;
 }
