@@ -552,6 +552,7 @@ void Model::RunApkTool(std::string APK_FILE) {
 
         while (std::getline(in, line)) {
             ++line_num;
+
             for (const auto& kw : keywords) {
                 if (line.find(kw) != std::string::npos) {
                     out << "[文件: " << path << "] 第 " << line_num
