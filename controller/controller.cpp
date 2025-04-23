@@ -76,7 +76,7 @@ void Controller::Run() {
                 model.DumpCallLogs();
                 view.ShowSuccess("通话记录已导出");
             }
-            // 命令 2：让 Model 小管家去备份短信哟~
+            // 命令 2：让 Model 小管家去备份短信oyer~
             else if (command == "2") {
                 view.ShowMessage("正在导出短信...", view.BLUE);
                 model.DumpSMS();
@@ -154,6 +154,9 @@ void Controller::Run() {
             }
 
             else if (command == "15" || command == "dumpsys") {
+                view.ShowMessage("正在提取微信数据...", view.BLUE);
+                model.Extract微信();
+                view.ShowSuccess("微信数据已导出");
             }
 
             // 如果输入了不认识的命令，View 小助手会用红色字体提醒哟

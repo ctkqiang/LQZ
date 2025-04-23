@@ -112,6 +112,8 @@ class Model {
     void DumpSysFromSpecificPackage(std::string PACKAGE_NAME);
     void RunPackageAs();
     void RunApkTool(std::string APK_FILE);
+
+    void Extract微信();
 };
 
 #endif

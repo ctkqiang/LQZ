@@ -582,3 +582,45 @@ bool ContainsAny(const std::string& line,
     }
     return false;
 }
+
+void Model::Extract微信() {
+    const std::string outputDir = "Datas/微信";
+    fs::create_directories(outputDir);
+
+    std::cout << "📱 检查设备连接状态..." << std::endl;
+    if (system("adb get-state > nul 2>&1") != 0) {
+        std::cerr << "❌ 设备未连接。" << std::endl;
+        return;
+    }
+
+    std::cout << "📤 正在尝试提取 /sdcard 路径..." << std::endl;
+    std::string pull_sdcard =
+        "adb pull /sdcard/Android/data/com.tencent.mm/ \"" + outputDir +
+        "/sdcard/\"";
+    int result_sdcard = system(pull_sdcard.c_str());
+
+    if (result_sdcard == 0) {
+        std::cout << "✅ 成功提取 /sdcard 目录。" << std::endl;
+        return;
+    }
+
+    std::cout << "⚠️ /sdcard 不可访问，尝试 /data/data 路径（需要 root）..."
+              << std::endl;
+    std::string pull_data =
+        "adb shell su -c 'cp -r /data/data/com.tencent.mm /sdcard/wechat_tmp "
+        "&& chmod -R 777 /sdcard/wechat_tmp'";
+    int result_root = system(pull_data.c_str());
+
+    if (result_root != 0) {
+        std::cerr << "❌ 无法访问 /data/data。需要 root 权限。" << std::endl;
+        return;
+    }
+
+    std::string pull_tmp =
+        "adb pull /sdcard/wechat_tmp \"" + outputDir + "/data_data/\"";
+    if (system(pull_tmp.c_str()) == 0) {
+        std::cout << "✅ 成功提取 /data/data 目录。" << std::endl;
+    } else {
+        std::cerr << "❌ 复制 /data/data 失败。" << std::endl;
+    }
+}
