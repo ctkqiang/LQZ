@@ -18,5 +18,7 @@ int main(int argc, char* argv[]) {
 
     // return app->make_window_and_run<GUI>(argc, argv);
 
+    // 在1.1版本中实现此功能
+
     return 0x0;
 }
