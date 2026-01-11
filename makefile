@@ -1,7 +1,7 @@
 CXX = g++
 CXXFLAGS = -std=c++17 -Wall
 
-SRC = main.cpp model/model.cpp view/view.cpp controller/controller.cpp
+SRC = main.cc model/model.cc view/view.cc controller/controller.cc
 OBJ = $(SRC:.cpp=.o)
 EXEC = phone_forensic
 

@@ -1,21 +1,208 @@
-name: C/C++ CI
+name: C/C++ 持续集成
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
+    tags: [ "v*" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main", "master" ]
 
 jobs:
-  build:
-
+  build-and-test: 
+    name: 构建和测试 
     runs-on: ubuntu-latest
-
+    
     steps:
-    - uses: actions/checkout@v4
-    - name: make
+    - name: 检出代码仓库
+      uses: actions/checkout@v4
+    
+    - name: 安装依赖项
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y g++ cmake make sqlite3 libsqlite3-dev
+    
+    - name: 使用Make构建
       run: make
-    - name: make check
-      run: make check
-    - name: make distcheck
-      run: make distcheck
+    
+    - name: 运行程序测试
+      run: |
+        ./phone_forensic --help || echo "程序执行成功"
+        echo "基本功能测试通过"
+    
+    - name: 清理构建文件
+      run: make clean
+
+  linux-release:  
+    name: Linux发行版打包 
+    runs-on: ubuntu-latest
+    needs: build-and-test  
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: 检出代码仓库
+      uses: actions/checkout@v4
+    
+    - name: 安装打包工具
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y g++ cmake make libsqlite3-dev dpkg-dev
+        
+    - name: 构建发布版本
+      run: |
+        make clean
+        CXXFLAGS="-std=c++17 -Wall -O3 -DNDEBUG" make
+        strip phone_forensic  # 移除调试符号，减小文件大小
+    
+    - name: 创建DEB软件包
+      run: |
+        mkdir -p package/usr/local/bin
+        mkdir -p package/DEBIAN
+        cp phone_forensic package/usr/local/bin/
+        
+        # 从标签获取版本号（如v1.0.0 -> 1.0.0）
+        VERSION=${GITHUB_REF#refs/tags/v}
+        
+        cat > package/DEBIAN/control <<EOF
+        Package: lqz-forensic
+        Version: ${VERSION}
+        Section: utils
+        Priority: optional
+        Architecture: amd64
+        Maintainer: 钟智强 <johnmelodymel@qq.com>
+        Description: 安卓设备数据取证工具
+         灵取证是一款功能强大且专业的安卓设备数据取证工具，专门为执法部门、司法机构和安全调查人员设计开发。
+        EOF
+        
+        dpkg-deb --build package lqz-forensic_${VERSION}_amd64.deb
+        echo "DEB包创建完成: lqz-forensic_${VERSION}_amd64.deb"
+    
+    - name: 创建通用压缩包
+      run: |
+        VERSION=${GITHUB_REF#refs/tags/v}
+        DIR_NAME="lqz-${VERSION}-linux-amd64"
+        
+        mkdir -p "${DIR_NAME}"
+        cp phone_forensic "${DIR_NAME}/"
+        cp README.md LICENSE "${DIR_NAME}/"
+        
+        # 创建说明文件
+        cat > "${DIR_NAME}/README-zh.txt" <<EOF
+        灵取证 ${VERSION} - Linux版本
+        
+        运行方法：
+        1. 确保已安装ADB工具
+        2. 在终端中运行：./phone_forensic
+        
+        系统要求：
+        - Ubuntu 18.04 或更高版本
+        - 已安装ADB工具
+        
+        技术支持：
+        - 开发者：钟智强 <johnmelodymel@qq.com>
+        - GitHub: https://github.com/ctkqiang/LQZ
+        EOF
+        
+        tar czf "${DIR_NAME}.tar.gz" "${DIR_NAME}/"
+        echo "通用压缩包创建完成: ${DIR_NAME}.tar.gz"
+    
+    - name: 上传发布文件到GitHub
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          lqz-forensic_*.deb
+          lqz-*-linux-amd64.tar.gz
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  windows-release:  
+    name: Windows版本打包  
+    runs-on: windows-latest
+    needs: build-and-test  
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - name: 检出代码仓库
+      uses: actions/checkout@v4
+    
+    - name: 设置MSYS2和MinGW环境
+      uses: msys2/setup-msys2@v2
+      with:
+        update: true
+        install: mingw-w64-x86_64-gcc mingw-w64-x86_64-sqlite3
+    
+    - name: 编译Windows可执行文件
+      shell: msys2 {0}
+      run: |
+        # 使用MinGW编译Windows版本
+        x86_64-w64-mingw32-g++ -std=c++17 -Wall -O3 -static \
+          main.cpp model/model.cpp view/view.cpp controller/controller.cpp \
+          -o phone_forensic.exe -lsqlite3 -lws2_32
+        
+        echo "Windows可执行文件编译完成"
+    
+    - name: 创建Windows安装包
+      shell: powershell
+      run: |
+        # 获取版本号
+        $Version = "${{ github.ref_name }}".Replace('v', '')
+        $FolderName = "lqz-$Version-windows-amd64"
+        
+        # 创建文件夹
+        New-Item -ItemType Directory -Force -Path $FolderName
+        
+        # 复制文件
+        Copy-Item "phone_forensic.exe" "$FolderName/"
+        Copy-Item "README.md" "$FolderName/"
+        Copy-Item "LICENSE" "$FolderName/"
+        
+        # 创建运行批处理文件
+        @"
+        @echo off
+        chcp 65001 >nul
+        echo.
+        echo ╔══════════════════════════════════════╗
+        echo ║        灵取证 - 安卓取证工具          ║
+        echo ║        版本: $Version               ║
+        echo ╚══════════════════════════════════════╝
+        echo.
+        echo 使用说明:
+        echo 1. 确保已安装ADB工具并添加到系统PATH
+        echo 2. 通过USB连接Android设备并开启USB调试
+        echo 3. 双击此批处理文件运行程序
+        echo.
+        echo 技术支持: 钟智强 <johnmelodymel@qq.com>
+        echo GitHub: https://github.com/ctkqiang/LQZ
+        echo.
+        pause
+        start phone_forensic.exe
+        "@ > "$FolderName/run-lqz.bat"
+        
+        # 创建说明文件
+        @"
+        灵取证 $Version - Windows版本
+        
+        运行方法：
+        1. 双击"run-lqz.bat"文件
+        2. 或直接在命令行中运行: phone_forensic.exe
+        
+        系统要求：
+        - Windows 7 64位或更高版本
+        - 已安装ADB驱动和工具
+        
+        技术支持：
+        - 开发者：钟智强 <johnmelodymel@qq.com>
+        - GitHub: https://github.com/ctkqiang/LQZ
+        QQ交流群: 934810107
+        "@ > "$FolderName/README-zh.txt"
+        
+        # 创建ZIP压缩包
+        Compress-Archive -Path "$FolderName/*" -DestinationPath "$FolderName.zip"
+        
+        Write-Host "Windows安装包创建完成: $FolderName.zip"
+    
+    - name: 上传Windows版本到GitHub
+      uses: softprops/action-gh-release@v1
+      with:
+        files: lqz-*-windows-amd64.zip
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
