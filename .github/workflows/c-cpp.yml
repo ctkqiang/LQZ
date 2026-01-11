@@ -3,13 +3,15 @@ name: C/C++ 持续集成
 on:
   push:
     branches: [ "main", "master" ]
-    tags: [ "v*" ]
   pull_request:
     branches: [ "main", "master" ]
+  # 添加 release 事件支持
+  release:
+    types: [created]
 
 jobs:
-  build-and-test: 
-    name: 构建和测试 
+  build-and-test:
+    name: 构建和测试
     runs-on: ubuntu-latest
     
     steps:
@@ -24,23 +26,46 @@ jobs:
     - name: 使用Make构建
       run: make
     
-    - name: 运行程序测试
+    - name: 测试可执行文件
       run: |
-        ./phone_forensic --help || echo "程序执行成功"
-        echo "基本功能测试通过"
+        if [ -f "phone_forensic" ]; then
+          ./phone_forensic --help || echo "程序运行成功"
+          echo "✅ 可执行文件测试通过"
+        else
+          echo "❌ 可执行文件未找到"
+          exit 1
+        fi
     
     - name: 清理构建文件
       run: make clean
 
-  linux-release:  
-    name: Linux发行版打包 
+  linux-release:
+    name: Linux发行版打包
     runs-on: ubuntu-latest
-    needs: build-and-test  
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-and-test
+    # 修复条件：同时支持标签推送和Release创建
+    if: |
+      (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') &&
+      needs.build-and-test.result == 'success'
     
     steps:
     - name: 检出代码仓库
       uses: actions/checkout@v4
+    
+    - name: 获取版本号
+      id: get-version
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          VERSION="${{ github.event.release.tag_name }}"
+          # 如果标签以v开头，去掉v前缀
+          VERSION=${VERSION#v}
+        else
+          VERSION="${GITHUB_REF#refs/tags/}"
+          VERSION=${VERSION#v}
+        fi
+        echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+        echo "version=${VERSION}" >> $GITHUB_ENV
+        echo "📦 版本号: ${VERSION}"
     
     - name: 安装打包工具
       run: |
@@ -51,7 +76,10 @@ jobs:
       run: |
         make clean
         CXXFLAGS="-std=c++17 -Wall -O3 -DNDEBUG" make
-        strip phone_forensic  # 移除调试符号，减小文件大小
+        strip phone_forensic
+    
+    - name: 列出构建文件
+      run: ls -la phone_forensic && file phone_forensic
     
     - name: 创建DEB软件包
       run: |
@@ -59,43 +87,35 @@ jobs:
         mkdir -p package/DEBIAN
         cp phone_forensic package/usr/local/bin/
         
-        # 从标签获取版本号（如v1.0.0 -> 1.0.0）
-        VERSION=${GITHUB_REF#refs/tags/v}
-        
         cat > package/DEBIAN/control <<EOF
         Package: lqz-forensic
-        Version: ${VERSION}
+        Version: ${{ env.version }}
         Section: utils
         Priority: optional
         Architecture: amd64
         Maintainer: 钟智强 <johnmelodymel@qq.com>
-        Description: 安卓设备数据取证工具
+        Description: Android Device Forensic Tool
          灵取证是一款功能强大且专业的安卓设备数据取证工具，专门为执法部门、司法机构和安全调查人员设计开发。
         EOF
         
-        dpkg-deb --build package lqz-forensic_${VERSION}_amd64.deb
-        echo "DEB包创建完成: lqz-forensic_${VERSION}_amd64.deb"
+        dpkg-deb --build package lqz-forensic_${{ env.version }}_amd64.deb
+        echo "✅ DEB包创建完成"
+        ls -la *.deb
     
     - name: 创建通用压缩包
       run: |
-        VERSION=${GITHUB_REF#refs/tags/v}
-        DIR_NAME="lqz-${VERSION}-linux-amd64"
+        DIR_NAME="lqz-${{ env.version }}-linux-amd64"
         
         mkdir -p "${DIR_NAME}"
         cp phone_forensic "${DIR_NAME}/"
         cp README.md LICENSE "${DIR_NAME}/"
         
-        # 创建说明文件
         cat > "${DIR_NAME}/README-zh.txt" <<EOF
-        灵取证 ${VERSION} - Linux版本
+        灵取证 ${{ env.version }} - Linux版本
         
         运行方法：
         1. 确保已安装ADB工具
         2. 在终端中运行：./phone_forensic
-        
-        系统要求：
-        - Ubuntu 18.04 或更高版本
-        - 已安装ADB工具
         
         技术支持：
         - 开发者：钟智强 <johnmelodymel@qq.com>
@@ -103,26 +123,47 @@ jobs:
         EOF
         
         tar czf "${DIR_NAME}.tar.gz" "${DIR_NAME}/"
-        echo "通用压缩包创建完成: ${DIR_NAME}.tar.gz"
+        echo "✅ 通用压缩包创建完成"
+        ls -la *.tar.gz
     
-    - name: 上传发布文件到GitHub
+    - name: 上传到GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           lqz-forensic_*.deb
           lqz-*-linux-amd64.tar.gz
+        generate_release_notes: true
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  windows-release:  
-    name: Windows版本打包  
+  windows-release:
+    name: Windows版本打包
     runs-on: windows-latest
-    needs: build-and-test  
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build-and-test
+    # 修复条件：同时支持标签推送和Release创建
+    if: |
+      (startsWith(github.ref, 'refs/tags/') || github.event_name == 'release') &&
+      needs.build-and-test.result == 'success'
     
     steps:
     - name: 检出代码仓库
       uses: actions/checkout@v4
+    
+    - name: 获取版本号
+      id: get-version
+      run: |
+        if [ "${{ github.event_name }}" = "release" ]; then
+          VERSION="${{ github.event.release.tag_name }}"
+        else
+          VERSION="${GITHUB_REF#refs/tags/}"
+        fi
+        # 去掉v前缀（如果有）
+        VERSION=${VERSION#v}
+        echo "VERSION=${VERSION}" >> $GITHUB_OUTPUT
+        echo "version=${VERSION}" >> $GITHUB_ENV
+        echo "version=${VERSION}" | Out-File -FilePath $env:GITHUB_ENV -Append
     
     - name: 设置MSYS2和MinGW环境
       uses: msys2/setup-msys2@v2
@@ -133,24 +174,23 @@ jobs:
     - name: 编译Windows可执行文件
       shell: msys2 {0}
       run: |
-        # 使用MinGW编译Windows版本
         x86_64-w64-mingw32-g++ -std=c++17 -Wall -O3 -static \
           main.cpp model/model.cpp view/view.cpp controller/controller.cpp \
           -o phone_forensic.exe -lsqlite3 -lws2_32
         
-        echo "Windows可执行文件编译完成"
+        echo "✅ Windows可执行文件编译完成"
+        ls -la *.exe
     
     - name: 创建Windows安装包
       shell: powershell
       run: |
-        # 获取版本号
-        $Version = "${{ github.ref_name }}".Replace('v', '')
+        $Version = "${{ env.version }}"
         $FolderName = "lqz-$Version-windows-amd64"
         
-        # 创建文件夹
+        Write-Host "📦 创建Windows安装包: $FolderName"
+        
         New-Item -ItemType Directory -Force -Path $FolderName
         
-        # 复制文件
         Copy-Item "phone_forensic.exe" "$FolderName/"
         Copy-Item "README.md" "$FolderName/"
         Copy-Item "LICENSE" "$FolderName/"
@@ -175,7 +215,7 @@ jobs:
         echo.
         pause
         start phone_forensic.exe
-        "@ > "$FolderName/run-lqz.bat"
+        "@ | Out-File -FilePath "$FolderName\run-lqz.bat" -Encoding ASCII
         
         # 创建说明文件
         @"
@@ -187,22 +227,25 @@ jobs:
         
         系统要求：
         - Windows 7 64位或更高版本
-        - 已安装ADB驱动和工具
         
         技术支持：
         - 开发者：钟智强 <johnmelodymel@qq.com>
         - GitHub: https://github.com/ctkqiang/LQZ
-        QQ交流群: 934810107
-        "@ > "$FolderName/README-zh.txt"
+        - QQ交流群: 934810107
+        "@ | Out-File -FilePath "$FolderName\README-zh.txt" -Encoding UTF8
         
         # 创建ZIP压缩包
-        Compress-Archive -Path "$FolderName/*" -DestinationPath "$FolderName.zip"
+        Compress-Archive -Path "$FolderName\*" -DestinationPath "$FolderName.zip"
         
-        Write-Host "Windows安装包创建完成: $FolderName.zip"
+        Write-Host "✅ Windows安装包创建完成: $FolderName.zip"
+        Get-ChildItem *.zip
     
-    - name: 上传Windows版本到GitHub
+    - name: 上传Windows版本到GitHub Release
       uses: softprops/action-gh-release@v1
       with:
         files: lqz-*-windows-amd64.zip
+        generate_release_notes: true
+        draft: false
+        prerelease: false
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
