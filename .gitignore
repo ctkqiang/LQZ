@@ -1,5 +1,6 @@
 # Build directories
 build/
+cmake-build-*/
 Debug/
 Release/
 x64/
@@ -68,3 +69,7 @@ Datas/
 # Project specific
 Phone_dump_sms.ab
 phone_forensic
+
+.agentbridge
+.claude
+.trae

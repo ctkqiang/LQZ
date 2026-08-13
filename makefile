@@ -1,7 +1,7 @@
 CXX = g++
-CXXFLAGS = -std=c++17 -Wall
+CXXFLAGS = -std=c++26 -Wall
 
-SRC = main.cc model/model.cc view/view.cc controller/controller.cc
+SRC = src/main.cc src/model/model.cc src/view/view.cc src/controller/controller.cc
 OBJ = $(SRC:.cc=.o)
 EXEC = phone_forensic
 
@@ -17,4 +17,4 @@ clean:
 	rm -f $(OBJ) $(EXEC)
 
 run:
-	g++ -std=c++17 -Wall main.cc model/model.cc view/view.cc controller/controller.cc -o $(EXEC) && ./$(EXEC)
+	g++ -std=c++26 -Wall src/main.cc src/model/model.cc src/view/view.cc src/controller/controller.cc -o $(EXEC) && ./$(EXEC)
