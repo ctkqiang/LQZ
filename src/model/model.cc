@@ -13,6 +13,26 @@
 #include <string_view>
 #include <vector>
 
+#include "evidence/evidence.h"
+#include "util/sha256.h"
+#include "version.h"
+
+namespace {
+
+// 全局字符串替换小助手:prepareCommand/preparePath 都用它把 "Datas" 换成输出根目录
+std::string ReplaceAll(std::string text, std::string_view from,
+                       std::string_view to) {
+    if (from.empty()) return text;
+    std::size_t position = 0;
+    while ((position = text.find(from, position)) != std::string::npos) {
+        text.replace(position, from.size(), to);
+        position += to.size();
+    }
+    return text;
+}
+
+}  // namespace
+
 // 呐呐~这个 `ADB_WIRELESS_CONNECT_COMMAND_TEMPLATE`
 // 呀，就像是一座神奇的桥梁，它能让我们的电脑和安卓设备手牵手呢
 // 不过要记得把 <device_ip> 换成设备真正的 IP
@@ -59,7 +79,7 @@ void Model::Shell(const std::string &shellCommandToExecute) {
     std::string commandExecutionOutput =
         executeCommand(ADB_SHELL_COMMAND_PREFIX + shellCommandToExecute);
     // 然后把执行的结果美美的打印出来哟
-    printf("%s\n", commandExecutionOutput.c_str());
+    log(commandExecutionOutput);
 }
 
 // 哎呀呀，`executeCommand`
@@ -71,8 +91,9 @@ std::string Model::executeCommand(
     // `accumulatedCommandOutput`
     // 则是一个大箱子，把口袋里的内容都收集起来，最后变成完整的输出结果哟
     std::string accumulatedCommandOutput;
-    // 打开一个神奇的管道，让命令能在里面运行呢
-    FILE* commandOutputPipe = popen(shellCommandToExecute.c_str(), "r");
+    // 先做命令预处理(-s 前缀 + 输出目录替换),再打开神奇的管道
+    const std::string preparedCommand = prepareCommand(shellCommandToExecute);
+    FILE* commandOutputPipe = popen(preparedCommand.c_str(), "r");
 
     // 如果管道打开失败了，就像魔法失灵啦，只能返回一个空空的箱子咯
     if (!commandOutputPipe) return "";
@@ -122,13 +143,13 @@ bool Model::CheckDevice() {
 // 小房间，然后把安卓设备里的短信都好好地备份起来呢
 void Model::DumpSMS() {
     // 轻轻地创建一个 `Datas` 小房间，如果房间已经有啦，也没关系哒
-    std::filesystem::create_directories("Datas");
+    std::filesystem::create_directories(preparePath("Datas"));
 
     // 用 `ADB_BACKUP_SMS_COMMAND` 这个大宝贝把短信备份好
-    system(ADB_BACKUP_SMS_COMMAND);
+    runSystem(ADB_BACKUP_SMS_COMMAND);
     // 再用 `mvt - android`
     // 工具检查备份文件，把有用的数据提取出来，最后把备份文件这个小包袱扔掉哟
-    system(
+    runSystem(
         "mvt-android check-backup Datas/Phone_dump_sms.ab -o Datas/ && rm "
         "Datas/Phone_dump_sms.ab");
 }
@@ -137,18 +158,18 @@ void Model::DumpSMS() {
 // 小相册，然后把安卓设备里的照片都拉到相册里来呢
 void Model::DumpPhotos() {
     // 先创建一个美美的 `Datas` 小相册
-    std::filesystem::create_directories("Datas");
+    std::filesystem::create_directories(preparePath("Datas"));
     // 把设备里 `/sdcard/Pictures` 这个照片小仓库里的照片都搬到相册里来哟
-    system("adb pull /sdcard/Pictures Datas/");
+    runSystem("adb pull /sdcard/Pictures Datas/");
 }
 
 // 哎呀呀，`DumpDownloads` 函数就像是一个勤劳的小快递员，它会创建一个 `Datas`
 // 小包裹站，然后把安卓设备里下载的文件都送到包裹站里呢
 void Model::DumpDownloads() {
     // 建一个可爱的 `Datas` 小包裹站
-    std::filesystem::create_directories("Datas");
+    std::filesystem::create_directories(preparePath("Datas"));
     // 把设备里 `/sdcard/Download` 这个下载小基地里的文件都拉到包裹站里哟
-    system("adb pull /sdcard/Download Datas/");
+    runSystem("adb pull /sdcard/Download Datas/");
 }
 
 // 呐呐~`CheckAdb` 函数就像是一个小医生，它能帮我们检查一下电脑里有没有安装 ADB
@@ -163,8 +184,8 @@ void Model::CheckAdb() {
 #ifdef _WIN32
         // 如果是 Windows 系统，就像小医生拿出了一个 Windows
         // 专属的小药方，提示我们正在安装 ADB 工具，然后用 `winget` 来安装
-        std::cout << "ADB未安装，正在安装..." << std::endl;
-        system("powershell -Command \"winget install Google.PlatformTools\"");
+        log("ADB未安装，正在安装...");
+        runSystem("powershell -Command \"winget install Google.PlatformTools\"");
 
         // 找到用户的主目录，就像找到了小房子的地址
         std::string userHomeDirectoryPath = getenv("USERPROFILE");
@@ -177,20 +198,20 @@ void Model::CheckAdb() {
         std::string setxEnvironmentVariableCommand =
             "setx PATH \"%PATH%;" + androidPlatformToolsDirectoryPath + "\"";
         // 执行这个命令，把小纸条贴好
-        system(setxEnvironmentVariableCommand.c_str());
+        runSystem(setxEnvironmentVariableCommand.c_str());
 #elif __APPLE__
         // 如果是 macOS 系统，小医生就拿出了 macOS
         // 专属的小药方，提示我们正在安装 ADB 工具，然后用 `brew` 来安装
-        std::cout << "ADB未安装，正在安装..." << std::endl;
-        system("brew install android-platform-tools");
+        log("ADB未安装，正在安装...");
+        runSystem("brew install android-platform-tools");
 #else
         // 如果是其他系统，小医生有点没办法啦，只能提示我们手动安装 ADB
         // 工具，然后伤心地退出程序咯
-        std::cout << "请手动安装ADB工具" << std::endl;
+        log("请手动安装ADB工具");
         exit(1);
 #endif
         // 最后提醒我们重启终端，让环境变量这个小纸条生效哟
-        std::cout << "请重启终端以使环境变量生效" << std::endl;
+        log("请重启终端以使环境变量生效");
         exit(0);
     }
 }
@@ -199,18 +220,18 @@ void Model::CheckAdb() {
 // 小仓库，然后把安卓设备里联系人的数据库文件都存到仓库里呢
 void Model::DumpContacts() {
     // 建一个大大的 `Datas` 小仓库
-    std::filesystem::create_directories("Datas");
+    std::filesystem::create_directories(preparePath("Datas"));
     // 把设备里联系人数据库文件
     // `/data/data/com.android.providers.contacts/databases/contacts2.db`
     // 搬到仓库里哟
-    system(
+    runSystem(
         "adb pull "
         "/data/data/com.android.providers.contacts/databases/contacts2.db "
         "Datas/");
     // 再把通话记录数据库文件
     // `/data/data/com.android.providers.contacts/databases/calllog.db`
     // 也搬到仓库里哟
-    system(
+    runSystem(
         "adb pull "
         "/data/data/com.android.providers.contacts/databases/calllog.db "
         "Datas/");
@@ -220,11 +241,11 @@ void Model::DumpContacts() {
 // 小信箱，然后把安卓设备里短信的数据库文件都放到信箱里呢
 void Model::DumpMessage() {
     // 先建一个萌萌的 `Datas` 小信箱
-    std::filesystem::create_directories("Datas");
+    std::filesystem::create_directories(preparePath("Datas"));
     // 把设备里短信数据库文件
     // `/data/data/com.android.providers.telephony/databases/mmssms.db`
     // 放到信箱里哟
-    system(
+    runSystem(
         "adb pull "
         "/data/data/com.android.providers.telephony/databases/mmssms.db "
         "Datas/");
@@ -234,9 +255,9 @@ void Model::DumpMessage() {
 // 大仓库，然后把安卓设备里整个 SD 卡的内容都搬到仓库里呢
 void Model::Dumpfiles() {
     // 建一个超级大的 `Datas` 大仓库
-    std::filesystem::create_directories("Datas");
+    std::filesystem::create_directories(preparePath("Datas"));
     // 把设备里 SD 卡的所有东西都搬到仓库里哟
-    system("adb pull /sdcard/ Datas/sdcard/");
+    runSystem("adb pull /sdcard/ Datas/sdcard/");
 }
 
 // 哎呀呀，`ConnectWirelessly`
@@ -249,7 +270,10 @@ void Model::ConnectWirelessly() {
     std::cout << "请输入手机IP地址: ";
     // 把我们输入的 IP 地址记到小本子上
     std::getline(std::cin, deviceIpAddressInput);
+    ConnectWirelessly(deviceIpAddressInput);
+}
 
+void Model::ConnectWirelessly(const std::string& deviceIpAddressInput) {
     // 用 IP 地址和端口号组成一个神奇的连接咒语
     std::string wirelessConnectionCommand =
         "adb connect " + deviceIpAddressInput + ":5555";
@@ -260,13 +284,15 @@ void Model::ConnectWirelessly() {
     // 如果咒语生效啦，输出里找到了 "connected"
     // 这个小魔法词，就说明成功和设备连接上啦
     if (wirelessConnectionOutput.find("connected") != std::string::npos) {
-        std::cout << "成功连接到设备 " << deviceIpAddressInput << std::endl;
+        log("成功连接到设备 " + deviceIpAddressInput);
+        lastCommandSucceeded_ = true;
     } else {
         // 如果咒语没生效，就温柔地告诉我们可能是哪里出了问题，让我们检查一下哟
-        std::cout << "连接失败，请确保:" << std::endl;
-        std::cout << "1. 手机和电脑在同一网络" << std::endl;
-        std::cout << "2. 手机已启用USB调试和无线调试" << std::endl;
-        std::cout << "3. IP地址正确" << std::endl;
+        log("连接失败，请确保:");
+        log("1. 手机和电脑在同一网络");
+        log("2. 手机已启用USB调试和无线调试");
+        log("3. IP地址正确");
+        lastCommandSucceeded_ = false;
     }
 }
 
@@ -274,16 +300,16 @@ void Model::ConnectWirelessly() {
 // 小本子，然后把安卓设备里的通话记录都工工整整地记到本子里呢
 void Model::DumpCallLogs() {
     // 先建一个可爱的 `Datas/CallLogs` 小本子
-    std::filesystem::create_directories("Datas/CallLogs");
+    std::filesystem::create_directories(preparePath("Datas/CallLogs"));
 
     // 用命令把设备里的通话记录记到小本子里
-    system(
+    runSystem(
         "adb shell content query --uri content://call_log/calls "
         "--projection date,number,duration,type "
         "> Datas/CallLogs/call_logs.log");
 
     // 再用另一个命令把通话记录变成美美的格式，也记到小本子里哟
-    system(
+    runSystem(
         "adb shell \"content query --uri content://call_log/calls "
         "--projection date,number,duration,type "
         "| awk '{print strftime(\\\"%Y-%m-%d %H:%M:%S\\\", substr(\\$1, "
@@ -295,33 +321,33 @@ void Model::DumpCallLogs() {
 // 小电影院，然后把安卓设备里的视频文件都搬到电影院里呢
 void Model::DumpVideos() {
     // 建一个大大的 `Datas` 小电影院
-    std::filesystem::create_directories("Datas");
+    std::filesystem::create_directories(preparePath("Datas"));
     // 把设备里相机拍摄的视频文件 `/sdcard/DCIM/Camera` 搬到电影院里哟
-    system("adb pull /sdcard/DCIM/Camera Datas/Videos/");
+    runSystem("adb pull /sdcard/DCIM/Camera Datas/Videos/");
     // 再把设备里电影文件夹里的视频文件 `/sdcard/Movies` 也搬到电影院里哟
-    system("adb pull /sdcard/Movies Datas/Videos/");
+    runSystem("adb pull /sdcard/Movies Datas/Videos/");
 }
 
 // 哇哦~`DumpApks` 函数就像是一个超级软件收藏家，它会创建一个 `Datas/APKs`
 // 小软件库，然后把安卓设备里的 APK 文件信息和文件都收集到软件库里呢
 void Model::DumpApks() {
     // 建一个美美的 `Datas/APKs` 小软件库
-    std::filesystem::create_directories("Datas/APKs");
+    std::filesystem::create_directories(preparePath("Datas/APKs"));
     // 用命令把设备里已安装应用的包名信息记到软件库的一个小本子里
-    system("adb shell pm list packages -f > Datas/APKs/installed_apps.log");
+    runSystem("adb shell pm list packages -f > Datas/APKs/installed_apps.log");
     // 把设备里 `/data/app/` 这个软件小仓库里的 APK 文件都搬到软件库里哟
-    system("adb pull /data/app/ Datas/APKs/");
+    runSystem("adb pull /data/app/ Datas/APKs/");
 }
 
 // 哎呀呀，`DumpDocuments` 函数就像是一个超级文档管理员，它会创建一个
 // `Datas/Documents` 小文档室，然后把安卓设备里的文档文件都整理到文档室里呢
 void Model::DumpDocuments() {
     // 建一个整洁的 `Datas/Documents` 小文档室
-    std::filesystem::create_directories("Datas/Documents");
+    std::filesystem::create_directories(preparePath("Datas/Documents"));
     // 把设备里文档文件夹 `/sdcard/Documents` 里的文档文件搬到文档室里哟
-    system("adb pull /sdcard/Documents Datas/Documents/");
+    runSystem("adb pull /sdcard/Documents Datas/Documents/");
     // 再把设备里下载文件夹 `/sdcard/Download` 里的文档文件也搬到文档室里哟
-    system("adb pull /sdcard/Download Datas/Documents/");
+    runSystem("adb pull /sdcard/Download Datas/Documents/");
 }
 
 // 哇塞~`ExtractSensitiveInfo` 函数就像是一个超级小侦探，它会创建一个
@@ -329,9 +355,9 @@ void Model::DumpDocuments() {
 // 小秘密基地，然后把安卓设备里的敏感信息都偷偷地收集到基地里呢
 void Model::ExtractSensitiveInfo() {
     // 建一个神秘的 `Datas/Sensitive` 小秘密基地
-    std::filesystem::create_directories("Datas/Sensitive");
+    std::filesystem::create_directories(preparePath("Datas/Sensitive"));
     // 把设备里 SD 卡的所有内容都搬到秘密基地里哟
-    system("adb pull /sdcard/ Datas/Sensitive/");
+    runSystem("adb pull /sdcard/ Datas/Sensitive/");
 }
 
 // 哟哟~`GetWifiAddress` 函数就像是一个超级网络小专家，它会创建一个
@@ -339,7 +365,7 @@ void Model::ExtractSensitiveInfo() {
 // 地址和网络信息都好好地研究记录下来呢
 void Model::GetWifiAddress() {
     // 建一个科技感满满的 `Datas/Network` 小网络实验室
-    std::filesystem::create_directories("Datas/Network");
+    std::filesystem::create_directories(preparePath("Datas/Network"));
 
     // 用命令获取设备的 WiFi 接口信息，就像给 WiFi 接口做个小检查
     std::string wifiInterfaceInformation = executeCommand(
@@ -366,7 +392,7 @@ void Model::GetWifiAddress() {
 
         // 打开一个文件，准备开始写日记啦
         std::ofstream networkInfoReportFile(
-            "Datas/Network/network_info.log");
+            preparePath("Datas/Network/network_info.log"));
         // 如果文件打不开，就像日记的本子坏了，会伤心地抛出一个异常哟
         if (!networkInfoReportFile.is_open()) {
             throw std::runtime_error("Cannot create network info file");
@@ -421,7 +447,7 @@ void Model::GetWifiAddress() {
                               ipAddressRegexPattern)) {
             std::string extractedIpAddress = ipAddressRegexMatch[1];
             std::ofstream wirelessDebugIpFile(
-                "Datas/Network/wireless_debug_ip.log");
+                preparePath("Datas/Network/wireless_debug_ip.log"));
             // 如果小档案的本子打不开，也会伤心地抛出一个异常哟
             if (!wirelessDebugIpFile.is_open()) {
                 throw std::runtime_error(
@@ -456,9 +482,9 @@ void Model::GetWifiAddress() {
 // `Datas/System` 小病房，然后把安卓设备的系统信息都好好地记录到病房的病历本里呢
 void Model::DumpSystemInfo() {
     // 建一个温馨的 `Datas/System` 小病房
-    std::filesystem::create_directories("Datas/System");
+    std::filesystem::create_directories(preparePath("Datas/System"));
     // 用命令把设备的系统信息写到病历本 `Datas/System/system_info.log` 里哟
-    system("adb shell dumpsys > Datas/System/system_info.log");
+    runSystem("adb shell dumpsys > Datas/System/system_info.log");
 }
 
 // 哎呀呀，`ListPackages` 函数就像是一个超级软件清单小助手，它会创建一个
@@ -466,10 +492,10 @@ void Model::DumpSystemInfo() {
 // 小清单本，然后把安卓设备里已安装应用的包名信息都记到清单本里呢
 void Model::ListPackages() {
     // 建一个整齐的 `Datas/Packages` 小清单本
-    std::filesystem::create_directories("Datas/Packages");
+    std::filesystem::create_directories(preparePath("Datas/Packages"));
     // 用命令把设备里已安装应用的包名信息记到清单本
     // `Datas/Packages/installed_packages.log` 里哟
-    system(
+    runSystem(
         "adb shell pm list packages > Datas/Packages/installed_packages.log");
 }
 
@@ -478,10 +504,10 @@ void Model::ListPackages() {
 // 数据都拉到俱乐部里呢
 void Model::ExtractWhatsApp() {
     // 建一个热闹的 `Datas/WhatsApp` 小粉丝俱乐部
-    std::filesystem::create_directories("Datas/WhatsApp");
+    std::filesystem::create_directories(preparePath("Datas/WhatsApp"));
     // 把设备里 `/sdcard/Android/data/com.whatsapp/` 这个 WhatsApp
     // 小天地里的数据都拉到俱乐部里哟
-    system("adb pull /sdcard/Android/data/com.whatsapp/ Datas/WhatsApp/");
+    runSystem("adb pull /sdcard/Android/data/com.whatsapp/ Datas/WhatsApp/");
 }
 
 // 哟哟~`ExtractBrowserData` 函数就像是一个超级浏览器小探险家，它会创建一个
@@ -489,36 +515,36 @@ void Model::ExtractWhatsApp() {
 // 小探险基地，然后去安卓设备的浏览器里探险，把有用的数据都带回来呢
 void Model::ExtractBrowserData() {
     // 建一个充满冒险气息的 `Datas/Browser` 小探险基地
-    std::filesystem::create_directories("Datas/Browser");
+    std::filesystem::create_directories(preparePath("Datas/Browser"));
 
     // 启用 Chrome 浏览器的无障碍服务，就像给探险队开了一个小绿灯
-    system(
+    runSystem(
         "adb shell settings put secure enabled_accessibility_services "
         "com.android.chrome/"
         "com.android.chrome.accessibility.AccessibilityService");
 
     // 从设备的 logcat 里找出 HTTPS URL 信息，就像在探险中发现了神秘的宝藏线索
-    system("adb logcat -d | grep -i \"https\" > Datas/Browser/https_urls.log");
+    runSystem("adb logcat -d | grep -i \"https\" > Datas/Browser/https_urls.log");
 
     // 把 Chrome 浏览器的缓存文件拉到探险基地里，就像把宝藏的小碎片都收集起来
-    system(
+    runSystem(
         "adb pull /sdcard/Android/data/com.android.chrome/cache/ "
         "Datas/Browser/chrome_cache/");
     // 把 WebView 的缓存文件也拉到探险基地里，就像收集更多的宝藏碎片
-    system(
+    runSystem(
         "adb pull /data/data/com.android.webview/cache/ "
         "Datas/Browser/webview_cache/");
 
     // 设置一个代理，就像给探险队安排了一个小向导
-    system("adb shell settings put global http_proxy 192.168.1.100:8080");
+    runSystem("adb shell settings put global http_proxy 192.168.1.100:8080");
 
     // 把 Chrome 浏览器的历史记录文件拉到探险基地里，就像打开了一本探险日记
-    system(
+    runSystem(
         "adb pull /data/data/com.android.chrome/app_chrome/Default/History "
         "Datas/Browser/");
     // 用 `sqlite3`
     // 工具从历史记录文件里找出有用的信息，就像从日记里读出精彩的故事
-    system(
+    runSystem(
         "sqlite3 Datas/Browser/History \"SELECT * FROM urls;\" > "
         "Datas/Browser/browsing_history.log");
 }
@@ -527,10 +553,10 @@ void Model::ExtractBrowserData() {
 // `Datas/Notifications` 小通知站，然后把安卓设备里的通知信息都收集到通知站里呢
 void Model::ExtractNotifications() {
     // 建一个明亮的 `Datas/Notifications` 小通知站
-    std::filesystem::create_directories("Datas/Notifications");
+    std::filesystem::create_directories(preparePath("Datas/Notifications"));
     // 用命令把设备里的通知信息收集到通知站的小本子
     // `Datas/Notifications/notifications.log` 里哟
-    system(
+    runSystem(
         "adb shell dumpsys notification > "
         "Datas/Notifications/notifications.log");
 }
@@ -541,10 +567,10 @@ void Model::ExtractNotifications() {
 void Model::DumpSysFromSpecificPackage(
     const std::string &targetPackageName) {
     // 建一个专属的 `Datas/SysFromSpecificPackage` 小档案室
-    std::filesystem::create_directories("Datas/SysFromSpecificPackage");
+    std::filesystem::create_directories(preparePath("Datas/SysFromSpecificPackage"));
 
     // 把指定包的系统信息写进以包名命名的小档案里哟
-    system(("adb shell dumpsys package " + targetPackageName +
+    runSystem(("adb shell dumpsys package " + targetPackageName +
             " > Datas/SysFromSpecificPackage/" + targetPackageName + ".log")
                .c_str());
 }
@@ -577,12 +603,12 @@ void Model::RunApkTool(const std::string &apkFilePath) {
         "aws",   "api", "tencent",  "auth",
     };
 
-    std::cout << "正在解包 APK..." << std::endl;
-    system(("apktool d -f " + apkFilePath + " -o " +
+    log("正在解包 APK...");
+    runSystem(("apktool d -f " + apkFilePath + " -o " +
             decompiledOutputDirectoryPath)
                .c_str());
 
-    std::cout << "正在扫描敏感关键词..." << std::endl;
+    log("正在扫描敏感关键词...");
 
     // 打开报告小本子，准备开始记录发现哟
     std::ofstream scanReportOutputStream(sensitiveDataReportFilePath);
@@ -627,8 +653,7 @@ void Model::RunApkTool(const std::string &apkFilePath) {
     // 闻完啦，把报告小本子合上哟
     scanReportOutputStream.close();
 
-    std::cout << "扫描完成，结果已写入: " << sensitiveDataReportFilePath
-              << std::endl;
+    log("扫描完成，结果已写入: " + sensitiveDataReportFilePath);
 }
 
 // 小嗅探犬技能~闻一闻这行文字里有没有藏着敏感小关键词哟
@@ -653,37 +678,36 @@ void Model::Extract微信() {
     const std::string weChatExtractionOutputDirectory = "Datas/微信";
     std::filesystem::create_directories(weChatExtractionOutputDirectory);
 
-    std::cout << "检查设备连接状态..." << std::endl;
+    log("检查设备连接状态...");
     // 小医生技能：不同系统要用不同的小黑洞来吞掉输出哟~
 #ifdef _WIN32
-    if (system("adb get-state > nul 2>&1") != 0) {
+    if (runSystem("adb get-state > nul 2>&1") != 0) {
 #else
-    if (system("adb get-state > /dev/null 2>&1") != 0) {
+    if (runSystem("adb get-state > /dev/null 2>&1") != 0) {
 #endif
         std::cerr << "设备未连接。" << std::endl;
         return;
     }
 
-    std::cout << "正在尝试提取 /sdcard 路径..." << std::endl;
+    log("正在尝试提取 /sdcard 路径...");
     // 先试着从 /sdcard 里的微信小天地把数据拉出来哟
     std::string sdcardPullCommand =
         "adb pull /sdcard/Android/data/com.tencent.mm/ \"" +
         weChatExtractionOutputDirectory + "/sdcard/\"";
-    int sdcardPullExitCode = system(sdcardPullCommand.c_str());
+    int sdcardPullExitCode = runSystem(sdcardPullCommand.c_str());
 
     if (sdcardPullExitCode == 0) {
-        std::cout << "成功提取 /sdcard 目录。" << std::endl;
+        log("成功提取 /sdcard 目录。");
         return;
     }
 
-    std::cout << "/sdcard 不可访问，尝试 /data/data 路径（需要 root）..."
-              << std::endl;
+    log("/sdcard 不可访问，尝试 /data/data 路径（需要 root）...");
     // /sdcard 进不去啦，就戴上 root 小皇冠，把 /data/data 里的微信数据
     // 先复制到 sdcard 的临时小房间，再拉出来哟
     std::string rootCopyToSdcardCommand =
         "adb shell su -c 'cp -r /data/data/com.tencent.mm /sdcard/wechat_tmp "
         "&& chmod -R 777 /sdcard/wechat_tmp'";
-    int rootCopyExitCode = system(rootCopyToSdcardCommand.c_str());
+    int rootCopyExitCode = runSystem(rootCopyToSdcardCommand.c_str());
 
     if (rootCopyExitCode != 0) {
         std::cerr << "无法访问 /data/data。需要 root 权限。" << std::endl;
@@ -694,9 +718,100 @@ void Model::Extract微信() {
     std::string temporaryDirectoryPullCommand =
         "adb pull /sdcard/wechat_tmp \"" + weChatExtractionOutputDirectory +
         "/data_data/\"";
-    if (system(temporaryDirectoryPullCommand.c_str()) == 0) {
-        std::cout << "成功提取 /data/data 目录。" << std::endl;
+    if (runSystem(temporaryDirectoryPullCommand.c_str()) == 0) {
+        log("成功提取 /data/data 目录。");
     } else {
         std::cerr << "复制 /data/data 失败。" << std::endl;
     }
+}
+
+// --- CLI/证据支持(取证合规)---
+
+// 设置目标设备序列号:证据记录里保存原始值,命令里用 "-s <serial> " 前缀
+void Model::SetDeviceSerial(const std::string& serial) {
+    serial_ = serial;
+    deviceSelectorPrefix_ = serial.empty() ? "" : ("-s " + serial + " ");
+}
+
+// 设置提取输出根目录:交互模式恒为 "Datas",CLI 模式为 -o 或 "Datas/<子命令>"
+void Model::SetOutputRoot(const std::string& outputRoot) {
+    outputRoot_ = outputRoot;
+}
+
+// 安静模式:CLI/--json 下模型不直接打印进度
+void Model::SetQuiet(bool quiet) { quiet_ = quiet; }
+
+// 设备是否在线:adb get-state 输出去空白后应等于 "device"
+bool Model::IsDeviceOnline() {
+    std::string state = executeCommand("adb get-state");
+    const auto isSpace = [](char c) {
+        return c == ' ' || c == '\n' || c == '\r' || c == '\t';
+    };
+    while (!state.empty() && isSpace(state.front())) state.erase(state.begin());
+    while (!state.empty() && isSpace(state.back())) state.pop_back();
+    return state == "device";
+}
+
+// 最近一次 runSystem 是否成功
+bool Model::LastCommandSucceeded() const { return lastCommandSucceeded_; }
+
+// 为本次提取生成 manifest.json 并追加 custody 链记录
+bool Model::RecordEvidence(const std::string& command, std::string& errorOut,
+                           std::string* manifestSha256Out,
+                           std::size_t* artifactCountOut) {
+    evidence::ManifestMeta meta;
+    meta.command = command;
+    meta.toolVersion = LQZ_VERSION_STRING;
+    meta.serial = serial_;
+    meta.deviceModel = connectedDeviceModelName;
+
+    std::vector<evidence::ArtifactInfo> artifacts;
+    if (!evidence::WriteManifest(outputRoot_, meta, artifacts, errorOut)) {
+        return false;
+    }
+    std::string hashError;
+    const std::string manifestSha256 = util::Sha256FileHex(
+        (std::filesystem::path(outputRoot_) / "manifest.json").string(),
+        hashError);
+    if (manifestSha256.empty()) {
+        errorOut = hashError;
+        return false;
+    }
+    if (!evidence::AppendCustody(outputRoot_, meta, artifacts, manifestSha256,
+                                 errorOut)) {
+        return false;
+    }
+    if (manifestSha256Out != nullptr) *manifestSha256Out = manifestSha256;
+    if (artifactCountOut != nullptr) *artifactCountOut = artifacts.size();
+    return true;
+}
+
+// 命令字符串预处理:首个 "adb " 后插入 -s 前缀,并全局 "Datas" → outputRoot_
+std::string Model::prepareCommand(const std::string& rawCommand) const {
+    std::string command = rawCommand;
+    if (!deviceSelectorPrefix_.empty()) {
+        const auto position = command.find("adb ");
+        if (position != std::string::npos) {
+            command.insert(position + 4, deviceSelectorPrefix_);
+        }
+    }
+    return ReplaceAll(std::move(command), "Datas", outputRoot_);
+}
+
+// 路径预处理:仅全局 "Datas" → outputRoot_(filesystem 路径用)
+std::string Model::preparePath(const std::string& rawPath) const {
+    return ReplaceAll(rawPath, "Datas", outputRoot_);
+}
+
+// 统一日志:quiet 模式下静默
+void Model::log(const std::string& message) const {
+    if (quiet_) return;
+    std::cout << message << std::endl;
+}
+
+// system() 包装:记录成败(证据写入前的依据)并返回原始退出码
+int Model::runSystem(const std::string& command) {
+    const int exitCode = std::system(prepareCommand(command).c_str());
+    lastCommandSucceeded_ = (exitCode == 0);
+    return exitCode;
 }

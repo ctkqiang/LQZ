@@ -200,6 +200,55 @@ sudo apt install adb android-tools-adb android-tools-fastboot
 | 浏览器数据    | 提取浏览器历史记录和缓存                     | `13` | 小探险家   |
 | 通知记录      | 导出设备通知历史                             | `14` | 小使者     |
 
+## 命令行用法
+
+无参数启动进入交互式界面;带参数则为 CLI 模式,支持脚本化与流水线组合。
+
+```bash
+lqz dump-sms -s <序列号> -o <输出目录>      # 导出短信
+lqz dump-call-logs --json                   # 机器可读输出
+lqz verify --deep -o <输出目录>             # 校验证据链
+lqz connect 192.168.1.10                    # 无线连接设备
+```
+
+**子命令**
+
+| 子命令 | 说明 | 子命令 | 说明 |
+| --- | --- | --- | --- |
+| `dump-call-logs` | 导出通话记录 | `dump-photos` | 导出照片 |
+| `dump-sms` | 导出短信 | `dump-videos` | 导出视频 |
+| `dump-documents` | 导出文档 | `dump-apks` | 导出应用 |
+| `dump-sensitive` | 提取敏感信息 | `dump-network` | 获取WiFi信息 |
+| `dump-system` | 导出系统信息 | `dump-packages` | 应用列表 |
+| `dump-whatsapp` | 提取WhatsApp数据 | `dump-browser` | 浏览器数据 |
+| `dump-notifications` | 通知记录 | `extract-wechat` | 提取微信数据 |
+| `connect <ip>` | 无线连接设备 | `verify` | 校验 custody 链 |
+
+**通用选项**
+
+- `-s, --serial <序列号>` — 目标设备序列号(adb -s)
+- `-o, --output <目录>` — 输出目录(默认 `Datas/<子命令>`;`verify` 时必填)
+- `--json` — 结果以单行 JSON 输出到 stdout,便于 `jq` 等工具处理
+- `--deep` — 配合 `verify`:逐文件校验内容哈希
+- `-h, --help` / `-V, --version`
+
+**退出码**:`0` 成功(含 --help/--version)、`1` 提取失败、`2` 参数错误、`3` 设备离线。
+
+`--json` 成功输出示例:
+
+```json
+{"status":"ok","command":"dump-sms","exit_code":0,"output_dir":"Datas/dump-sms","manifest":"Datas/dump-sms/manifest.json","manifest_sha256":"...","artifacts":3}
+```
+
+## 证据完整性
+
+每次提取完成后,输出目录会生成两个证据文件:
+
+- **`manifest.json`** — 文件清单:相对路径、字节大小、SHA-256、UTC 修改时间
+- **`custody.log`** — 防篡改哈希链(append-only JSONL):每条记录包含操作者、工具版本、时间戳、manifest 摘要与产物哈希,`hash = sha256(prev_hash + "|" + canonical)`,首条为全零锚点的创世记录
+
+使用 `lqz verify --deep -o <目录>` 可重算整条链:任何记录的字段被篡改、顺序错乱、manifest 被修改,或(配合 `--deep`)提取物内容被改动,都会被检出。
+
 ## 运行方法
 
 ### 下载安装

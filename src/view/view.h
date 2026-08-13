@@ -61,10 +61,17 @@ class View {
     // 清空屏幕
     void ClearScreen();
 
+    // CLI 模式开关:true 时面板与横幅静默,
+    // 提示信息改走 stderr 且不带 ANSI 颜色(保证 --json 的 stdout 纯净)
+    void SetCliMode(bool cliMode);
+
    private:
     // 获取当前操作系统类型
     // 会返回 "Windows"、"MacOS" 或 "Linux" 等小标签
     [[nodiscard]] std::string GetOSType();
+
+    // CLI 模式标记
+    bool cliMode_ = false;
 };
 
 #endif

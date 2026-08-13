@@ -22,7 +22,16 @@ add_executable(phone_forensic
         src/model/model.cc
         src/model/model.h
         src/view/view.cc
-        src/view/view.h)
+        src/view/view.h
+        src/evidence/evidence.cc
+        src/evidence/evidence.h
+        src/util/sha256.cc
+        src/util/sha256.h
+        src/util/json.cc
+        src/util/json.h
+        src/util/args.cc
+        src/util/args.h
+        src/version.h)
 
 target_include_directories(phone_forensic PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
@@ -44,3 +53,7 @@ if(LQZ_BUILD_GUI)
         message(WARNING "未找到 GTKmm，跳过 GUI 目标（brew install gtkmm4 后可启用）")
     endif()
 endif()
+
+# 测试：单测 + mock adb 集成测试（CTest）
+enable_testing()
+add_subdirectory(tests)

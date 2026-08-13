@@ -1,6 +1,7 @@
 #ifndef MODEL_H
 #define MODEL_H
 
+#include <cstddef>
 #include <string>
 
 // 哇哦~欢迎来到超可爱的数据模型类小窝窝呀
@@ -12,6 +13,27 @@ class Model {
     // 由 CheckDevice 小门卫在探测设备成功后偷偷填好哟~
     std::string connectedDeviceModelName;
 
+    // --- CLI/证据支持(取证合规)---
+    // adb 序列号原始值(证据记录用)
+    std::string serial_;
+    // 设备选择前缀:"-s <serial> "(空 = 不带序列号)
+    std::string deviceSelectorPrefix_;
+    // 输出根目录:交互模式恒为 "Datas";CLI 模式为 -o 或 "Datas/<子命令>"
+    std::string outputRoot_ = "Datas";
+    // 安静模式:CLI 下模型不直接打印进度
+    bool quiet_ = false;
+    // 最近一次 runSystem 是否成功(证据写入前的成败依据)
+    bool lastCommandSucceeded_ = true;
+
+    // 命令字符串预处理:首个 "adb " 后插入 -s 前缀,并全局 "Datas" → outputRoot_
+    std::string prepareCommand(const std::string& rawCommand) const;
+    // 路径预处理:仅全局 "Datas" → outputRoot_(filesystem 路径用)
+    std::string preparePath(const std::string& rawPath) const;
+    // 统一日志输出:quiet 模式下静默
+    void log(const std::string& message) const;
+    // system() 包装:记录成败并返回原始退出码
+    int runSystem(const std::string& command);
+
     // 小魔法师技能：执行一条系统命令，并把命令输出的内容都收集起来哟~
     // 如果命令执行失败了，就会返回一个空空的字符串哒
     std::string executeCommand(const std::string &shellCommandToExecute);
@@ -22,6 +44,23 @@ class Model {
                  const std::string &localDestinationDirectoryPath);
 
    public:
+    // --- CLI/证据支持(取证合规)---
+    // 设置目标设备序列号(adb -s);空串清除
+    void SetDeviceSerial(const std::string& serial);
+    // 设置提取输出根目录(默认 "Datas")
+    void SetOutputRoot(const std::string& outputRoot);
+    // 安静模式开关(CLI/--json 时开启)
+    void SetQuiet(bool quiet);
+    // 设备是否在线(adb get-state == device)
+    [[nodiscard]] bool IsDeviceOnline();
+    // 最近一次 runSystem 是否成功
+    [[nodiscard]] bool LastCommandSucceeded() const;
+    // 为本次提取生成 manifest.json 并追加 custody 链记录;
+    // 可选输出 manifest 摘要与产物数量(CLI --json 用)
+    bool RecordEvidence(const std::string& command, std::string& errorOut,
+                        std::string* manifestSha256Out = nullptr,
+                        std::size_t* artifactCountOut = nullptr);
+
     // 小侦探技能：返回缓存的设备型号小标签~
     // 这个小标签由 CheckDevice() 在探测设备成功后偷偷填好哟
     [[nodiscard]] std::string GetDeviceModel() const;
@@ -38,8 +77,10 @@ class Model {
     // 小秘书技能：执行一条任意的 ADB shell 命令，并把结果打印出来哒~
     void Shell(const std::string &shellCommandToExecute);
 
-    // 小使者技能：让用户输入设备 IP 地址，用无线方式和设备牵起手来哟~
+    // 小使者技能：让用户输入设备 IP 地址，用无线方式和设备牵起手来哟~(交互用)
     void ConnectWirelessly();
+    // 无线连接(带 IP 参数,CLI 用)
+    void ConnectWirelessly(const std::string& deviceIpAddressInput);
 
     // --- 数据提取小分队 ---
 

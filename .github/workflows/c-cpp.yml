@@ -2,10 +2,7 @@ name: C/C++ 持续集成
 
 on:
   push:
-    branches: [ "main", "master" ]
     tags: [ "v*", "release-*" ]
-  pull_request:
-    branches: [ "main", "master" ]
   release:
     types: [created, published]
   workflow_dispatch:
@@ -35,10 +32,10 @@ jobs:
     - name: 安装依赖项
       run: |
         sudo apt-get update
-        sudo apt-get install -y g++ cmake make sqlite3 libsqlite3-dev pkg-config
+        sudo apt-get install -y g++-14 cmake make sqlite3 libsqlite3-dev pkg-config
     
     - name: 使用Make构建
-      run: make
+      run: make CXX=g++-14
     
     - name: 验证构建结果
       run: |
@@ -55,7 +52,13 @@ jobs:
         timeout 5s ./phone_forensic --help 2>&1 | head -20 || \
         timeout 5s ./phone_forensic --version 2>&1 | head -5 || \
         echo "程序运行测试完成"
-    
+
+    - name: 运行测试(单元测试 + mock 集成测试)
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER=g++-14
+        cmake --build build -j2
+        ctest --test-dir build --output-on-failure
+
     - name: 清理构建文件
       run: make clean
 
@@ -80,20 +83,30 @@ jobs:
       shell: msys2 {0}
       run: |
         export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig"
-        x86_64-w64-mingw32-g++ -std=c++26 -Wall -O3 -static \
+        x86_64-w64-mingw32-g++ -std=c++26 -Wall -O3 -static -Isrc \
           src/main.cc src/model/model.cc src/view/view.cc src/controller/controller.cc \
+          src/evidence/evidence.cc src/util/sha256.cc src/util/json.cc src/util/args.cc \
           -o phone_forensic.exe -lsqlite3 -lws2_32 -lole32 -lshell32
-        
+
         if [ ! -f "phone_forensic.exe" ]; then
           echo "编译失败"
           exit 1
         fi
         echo "Windows可执行文件编译完成"
-    
+
     - name: 验证Windows可执行文件
       shell: msys2 {0}
       run: |
         timeout 5s ./phone_forensic.exe --help 2>&1 | head -5 || true
+
+    - name: 编译并运行单元测试(Windows)
+      shell: msys2 {0}
+      run: |
+        # 集成测试依赖 POSIX sh mock,Windows 只跑单元测试(与 CTest 单测内容一致)
+        g++ -std=c++26 -Wall -Isrc -Itests tests/test_main.cc tests/test_sha256.cc src/util/sha256.cc -o test_sha256.exe && ./test_sha256.exe
+        g++ -std=c++26 -Wall -Isrc -Itests tests/test_main.cc tests/test_json.cc src/util/json.cc -o test_json.exe && ./test_json.exe
+        g++ -std=c++26 -Wall -Isrc -Itests tests/test_main.cc tests/test_args.cc src/util/args.cc -o test_args.exe && ./test_args.exe
+        g++ -std=c++26 -Wall -Isrc -Itests tests/test_main.cc tests/test_custody.cc src/evidence/evidence.cc src/util/sha256.cc src/util/json.cc -o test_custody.exe && ./test_custody.exe
 
   build-and-test-macos:
     name: 构建和测试 (macOS)
@@ -134,6 +147,13 @@ jobs:
         timeout 5s ./phone_forensic --help 2>&1 | head -20 || \
         timeout 5s ./phone_forensic --version 2>&1 | head -5 || \
         echo "程序运行测试完成"
+
+    - name: 运行测试(单元测试 + mock 集成测试)
+      run: |
+        # 注:若 Apple clang 不支持 -std=c++26,请 brew install gcc 后指定编译器
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        cmake --build build -j2
+        ctest --test-dir build --output-on-failure
 
   linux-release:
     name: Linux发行版打包
@@ -181,12 +201,12 @@ jobs:
     - name: 安装打包工具
       run: |
         sudo apt-get update
-        sudo apt-get install -y dpkg-dev
+        sudo apt-get install -y dpkg-dev g++-14
     
     - name: 构建发布版本
       run: |
         make clean
-        CXXFLAGS="-std=c++26 -Wall -O3 -DNDEBUG" make
+        CXXFLAGS="-std=c++26 -Wall -O3 -DNDEBUG" make CXX=g++-14
         strip phone_forensic || echo "strip skipped"
     
     - name: 创建DEB软件包
@@ -342,15 +362,16 @@ jobs:
       shell: msys2 {0}
       run: |
         export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig"
-        x86_64-w64-mingw32-g++ -std=c++26 -Wall -O3 -static \
+        x86_64-w64-mingw32-g++ -std=c++26 -Wall -O3 -static -Isrc \
           src/main.cc src/model/model.cc src/view/view.cc src/controller/controller.cc \
+          src/evidence/evidence.cc src/util/sha256.cc src/util/json.cc src/util/args.cc \
           -o phone_forensic.exe -lsqlite3 -lws2_32 -lole32 -lshell32
-        
+
         if [ ! -f "phone_forensic.exe" ]; then
           echo "编译失败"
           exit 1
         fi
-    
+
     - name: 创建Windows安装包
       shell: powershell
       run: |

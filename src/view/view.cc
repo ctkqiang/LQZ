@@ -5,6 +5,8 @@
 #include <iostream>
 #include <vector>
 
+#include "version.h"
+
 namespace {
 
 // 计算字符串的终端显示宽度:中文按2列计算,并跳过 ANSI 颜色转义序列
@@ -61,6 +63,7 @@ void DrawPanel(const std::string& title,
 
 // 启动横幅:ASCII 手机图形 + 取证终端外壳信息面板
 void View::DisplayHeader() {
+    if (cliMode_) return;  // CLI 模式下横幅静默
     // ASCII 手机图形(青色线条与屏幕)
     std::cout << CYAN << R"(
        _______________
@@ -83,8 +86,8 @@ void View::DisplayHeader() {
               << "\n";
     std::cout << DIM
               << "  [TARGET] android device    [MODE] forensic extraction    "
-                 "[BUILD] v1.0.0"
-              << WHITE << "\n";
+                 "[BUILD] v"
+              << LQZ_VERSION_STRING << WHITE << "\n";
     std::cout << PINK
               << "  ~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~^~"
               << WHITE << "\n\n";
@@ -131,6 +134,7 @@ void View::DisplayHeader() {
 
 // 模块菜单:以面板形式列出全部功能与命令
 void View::DisplayHelp() {
+    if (cliMode_) return;  // CLI 模式下菜单静默
     DrawPanel("MODULES 功能模块",
               {"\033[95m[01]\033[0m Call Logs       通话记录",
                "\033[95m[02]\033[0m SMS             短信",
@@ -161,6 +165,7 @@ void View::DisplayHelp() {
 // 设备状态面板:连接成功与未检测到两种情况
 void View::ShowDeviceStatus(bool isDeviceConnected,
                             const std::string& deviceModelName) {
+    if (cliMode_) return;  // CLI 模式下设备面板静默
     if (isDeviceConnected) {
         std::cout << GREEN << "\n  [+] device online" << WHITE << "\n";
         DrawPanel("DEVICE STATUS 设备状态",
@@ -177,6 +182,7 @@ void View::ShowDeviceStatus(bool isDeviceConnected,
 // 任务进度条:青色任务标记 + 粉色进度槽
 void View::ShowProgress(const std::string& currentOperationName,
                         int completionPercentage) {
+    if (cliMode_) return;  // CLI 模式下进度条静默
     std::cout << CYAN << "\r  [*] " << currentOperationName << " " << WHITE;
     std::cout << PINK << "[";
     int progressBarFilledLength = 40 * completionPercentage / 100;
@@ -194,19 +200,31 @@ void View::ShowProgress(const std::string& currentOperationName,
     if (completionPercentage == 100) std::cout << "\n";
 }
 
-// 错误提示,红色 [err] 标签
+// 错误提示,红色 [err] 标签;CLI 模式走 stderr 且不带颜色
 void View::ShowError(const std::string& displayMessage) {
+    if (cliMode_) {
+        std::cerr << "  [err] " << displayMessage << "\n";
+        return;
+    }
     std::cout << RED << "  [err] " << displayMessage << WHITE << "\n";
 }
 
-// 成功提示,绿色 [ ok ] 标签
+// 成功提示,绿色 [ ok ] 标签;CLI 模式走 stderr 且不带颜色
 void View::ShowSuccess(const std::string& displayMessage) {
+    if (cliMode_) {
+        std::cerr << "  [ ok ] " << displayMessage << "\n";
+        return;
+    }
     std::cout << GREEN << "  [ ok ] " << displayMessage << WHITE << "\n";
 }
 
-// 普通提示,按指定颜色打印 [ * ] 标签
+// 普通提示,按指定颜色打印 [ * ] 标签;CLI 模式走 stderr 且不带颜色
 void View::ShowMessage(const std::string& displayMessage,
                        const std::string& colorCode) {
+    if (cliMode_) {
+        std::cerr << "  [ * ] " << displayMessage << "\n";
+        return;
+    }
     std::cout << colorCode << "  [ * ] " << displayMessage << WHITE << "\n";
 }
 
@@ -225,6 +243,9 @@ void View::ClearScreen() {
     system("clear");  // Unix系统下的清屏魔法~
 #endif
 }
+
+// CLI 模式开关:true 时面板静默,提示信息走 stderr 且不带 ANSI 颜色
+void View::SetCliMode(bool cliMode) { cliMode_ = cliMode; }
 
 // 获取当前操作系统类型
 std::string View::GetOSType() {
