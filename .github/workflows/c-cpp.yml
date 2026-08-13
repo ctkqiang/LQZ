@@ -44,11 +44,11 @@ jobs:
       run: |
         echo "=== 验证构建结果 ==="
         if [ ! -f "phone_forensic" ]; then
-          echo "❌ 可执行文件未找到"
+          echo "可执行文件未找到"
           ls -la
           exit 1
         fi
-        echo "✅ 可执行文件已成功生成"
+        echo "可执行文件已成功生成"
         file phone_forensic
         du -h phone_forensic
         
@@ -80,15 +80,15 @@ jobs:
       shell: msys2 {0}
       run: |
         export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig"
-        x86_64-w64-mingw32-g++ -std=c++17 -Wall -O3 -static \
-          main.cc model/model.cc view/view.cc controller/controller.cc \
+        x86_64-w64-mingw32-g++ -std=c++26 -Wall -O3 -static \
+          src/main.cc src/model/model.cc src/view/view.cc src/controller/controller.cc \
           -o phone_forensic.exe -lsqlite3 -lws2_32 -lole32 -lshell32
         
         if [ ! -f "phone_forensic.exe" ]; then
-          echo "❌ 编译失败"
+          echo "编译失败"
           exit 1
         fi
-        echo "✅ Windows可执行文件编译完成"
+        echo "Windows可执行文件编译完成"
     
     - name: 验证Windows可执行文件
       shell: msys2 {0}
@@ -109,10 +109,10 @@ jobs:
         echo "/usr/local/bin" >> $GITHUB_PATH
         echo "/opt/homebrew/bin" >> $GITHUB_PATH
     
-    - name: 设置C++17编译器标志
+    - name: 设置C++26编译器标志
       run: |
         echo "CXX=g++" >> $GITHUB_ENV
-        echo "CXXFLAGS=-std=c++17 -Wall -O3" >> $GITHUB_ENV
+        echo "CXXFLAGS=-std=c++26 -Wall -O3" >> $GITHUB_ENV
     
     - name: 使用Make构建
       run: |
@@ -123,11 +123,11 @@ jobs:
       run: |
         echo "=== 验证构建结果 ==="
         if [ ! -f "phone_forensic" ]; then
-          echo "❌ 可执行文件未找到"
+          echo "可执行文件未找到"
           ls -la
           exit 1
         fi
-        echo "✅ macOS可执行文件已成功生成"
+        echo "macOS可执行文件已成功生成"
         file phone_forensic
         du -h phone_forensic
         
@@ -186,7 +186,7 @@ jobs:
     - name: 构建发布版本
       run: |
         make clean
-        CXXFLAGS="-std=c++17 -Wall -O3 -DNDEBUG" make
+        CXXFLAGS="-std=c++26 -Wall -O3 -DNDEBUG" make
         strip phone_forensic || echo "strip skipped"
     
     - name: 创建DEB软件包
@@ -342,12 +342,12 @@ jobs:
       shell: msys2 {0}
       run: |
         export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig"
-        x86_64-w64-mingw32-g++ -std=c++17 -Wall -O3 -static \
-          main.cc model/model.cc view/view.cc controller/controller.cc \
+        x86_64-w64-mingw32-g++ -std=c++26 -Wall -O3 -static \
+          src/main.cc src/model/model.cc src/view/view.cc src/controller/controller.cc \
           -o phone_forensic.exe -lsqlite3 -lws2_32 -lole32 -lshell32
         
         if [ ! -f "phone_forensic.exe" ]; then
-          echo "❌ 编译失败"
+          echo "编译失败"
           exit 1
         fi
     
@@ -364,10 +364,10 @@ jobs:
         @echo off
         chcp 65001 >nul
         echo.
-        echo ╔══════════════════════════════════════════════╗
-        echo ║            灵取证 - 安卓取证工具             ║
-        echo ║              版本: $Version                  ║
-        echo ╚══════════════════════════════════════════════╝
+        echo ==============================================
+        echo             灵取证 - 安卓取证工具
+        echo               版本: $Version
+        echo ==============================================
         echo.
         echo 按任意键开始运行程序...
         pause >nul
