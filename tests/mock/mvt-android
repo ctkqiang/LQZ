@@ -1,0 +1,15 @@
+#!/bin/sh
+# 假 mvt-android 工具:记录调用,并在 -o 参数目录写一个假产物供 manifest 收录。
+echo "$@" >> "${LQZ_ADB_LOG:-/tmp/lqz_adb.log}"
+
+out=""
+prev=""
+for arg in "$@"; do
+    if [ "$prev" = "-o" ]; then out="$arg"; fi
+    prev="$arg"
+done
+if [ -n "$out" ]; then
+    mkdir -p "$out" 2>/dev/null || true
+    printf 'mvt report\n' > "$out/mvt_report.txt"
+fi
+exit 0

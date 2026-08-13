@@ -1,0 +1,59 @@
+#!/bin/sh
+# 假 adb 工具(POSIX sh):记录全部调用参数,返回可预置的假输出。
+# 集成测试通过 PATH 注入本脚本,验证 CLI 的 -s 传递、设备检测与提取流程。
+echo "$@" >> "${LQZ_ADB_LOG:-/tmp/lqz_adb.log}"
+
+# 跳过 CLI 传入的 -s <serial> 前缀
+if [ "$1" = "-s" ]; then shift 2; fi
+
+cmd="$1"
+shift
+
+case "$cmd" in
+    devices)
+        echo "List of devices attached"
+        if [ -z "$LQZ_MOCK_OFFLINE" ]; then
+            printf 'TEST123\tdevice product:test model:testphone device:testphone\n'
+        fi
+        ;;
+    get-state)
+        if [ -n "$LQZ_MOCK_OFFLINE" ]; then
+            echo "offline"
+        else
+            echo "device"
+        fi
+        ;;
+    pull)
+        # 最后一个参数是本地目标目录:写一个假提取产物
+        dst=""
+        for arg in "$@"; do dst="$arg"; done
+        mkdir -p "$dst" 2>/dev/null || true
+        printf 'fake artifact content\n' > "$dst/fake_artifact.txt"
+        ;;
+    backup)
+        # -f 后面的路径是备份输出文件
+        dst=""
+        prev=""
+        for arg in "$@"; do
+            if [ "$prev" = "-f" ]; then dst="$arg"; fi
+            prev="$arg"
+        done
+        if [ -n "$dst" ]; then
+            mkdir -p "$(dirname "$dst")" 2>/dev/null || true
+            printf 'fake ab data' > "$dst"
+        fi
+        ;;
+    shell)
+        echo "mock shell output"
+        ;;
+    version)
+        echo "Android Debug Bridge version 1.0.41"
+        echo "Version 34.0.4-mock"
+        ;;
+    *)
+        echo "mock adb: unknown command: $cmd" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
