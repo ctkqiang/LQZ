@@ -1,18 +1,12 @@
-#include <algorithm>
-#include <cstdio>
-#include <cstdlib>
-#include <filesystem>
-#include <iostream>
-#include <regex>
-#include <string>
 // #include <gtkmm/application.h>
 
 #include "controller/controller.h"
 // #include "view/gui.h"
 
 int main(int argc, char* argv[]) {
-    Controller App;
-    App.Run();
+    // 小管家登场~创建控制器并开启整个程序的魔法流程哟
+    Controller phoneForensicController;
+    phoneForensicController.Run();
 
     // auto app = Gtk::Application::create("xin.ctkqiang.lqz");
 
