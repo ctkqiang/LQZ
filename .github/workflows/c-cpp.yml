@@ -16,7 +16,7 @@ jobs:
   build-and-test-linux:
     name: 构建和测试 (Linux)
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: 调试信息
       run: |
@@ -25,18 +25,18 @@ jobs:
         echo "引用: ${{ github.ref }}"
         echo "标签名: ${{ github.ref_name }}"
         echo "是否标签推送: ${{ startsWith(github.ref, 'refs/tags/') }}"
-    
+
     - name: 检出代码仓库
       uses: actions/checkout@v4
-    
+
     - name: 安装依赖项
       run: |
         sudo apt-get update
         sudo apt-get install -y g++-14 cmake make sqlite3 libsqlite3-dev pkg-config
-    
+
     - name: 使用Make构建
       run: make CXX=g++-14
-    
+
     - name: 验证构建结果
       run: |
         echo "=== 验证构建结果 ==="
@@ -48,7 +48,7 @@ jobs:
         echo "可执行文件已成功生成"
         file phone_forensic
         du -h phone_forensic
-        
+
         timeout 5s ./phone_forensic --help 2>&1 | head -20 || \
         timeout 5s ./phone_forensic --version 2>&1 | head -5 || \
         echo "程序运行测试完成"
@@ -59,17 +59,24 @@ jobs:
         cmake --build build -j2
         ctest --test-dir build --output-on-failure
 
+    - name: 上传Linux可执行文件
+      uses: actions/upload-artifact@v4
+      with:
+        name: lqz-linux-binary
+        path: phone_forensic
+        retention-days: 7
+
     - name: 清理构建文件
       run: make clean
 
   build-and-test-windows:
     name: 构建和测试 (Windows)
     runs-on: windows-latest
-    
+
     steps:
     - name: 检出代码仓库
       uses: actions/checkout@v4
-    
+
     - name: 设置MSYS2和MinGW环境
       uses: msys2/setup-msys2@v2
       with:
@@ -78,7 +85,7 @@ jobs:
           mingw-w64-x86_64-gcc
           mingw-w64-x86_64-sqlite3
           mingw-w64-x86_64-pkg-config
-    
+
     - name: 编译Windows可执行文件
       shell: msys2 {0}
       run: |
@@ -108,30 +115,38 @@ jobs:
         g++ -std=c++26 -Wall -Isrc -Itests tests/test_main.cc tests/test_args.cc src/util/args.cc -o test_args.exe && ./test_args.exe
         g++ -std=c++26 -Wall -Isrc -Itests tests/test_main.cc tests/test_custody.cc src/evidence/evidence.cc src/util/sha256.cc src/util/json.cc -o test_custody.exe && ./test_custody.exe
 
+    - name: 上传Windows可执行文件
+      uses: actions/upload-artifact@v4
+      with:
+        name: lqz-windows-binary
+        path: phone_forensic.exe
+        retention-days: 7
+
   build-and-test-macos:
     name: 构建和测试 (macOS)
     runs-on: macos-latest
-    
+
     steps:
     - name: 检出代码仓库
       uses: actions/checkout@v4
-    
+
     - name: 安装依赖项
       run: |
-        brew install sqlite3
-        echo "/usr/local/bin" >> $GITHUB_PATH
-        echo "/opt/homebrew/bin" >> $GITHUB_PATH
-    
-    - name: 设置C++26编译器标志
+        brew install sqlite3 gcc
+
+    - name: 设置C++26编译器
       run: |
-        echo "CXX=g++" >> $GITHUB_ENV
-        echo "CXXFLAGS=-std=c++26 -Wall -O3" >> $GITHUB_ENV
-    
+        # Apple clang 不支持 -std=c++26,使用 Homebrew GCC(动态取已安装的最高版本)
+        GCC_DIR="$(brew --prefix)/bin"
+        GCC_NAME=$(ls "$GCC_DIR" | grep -E '^g\+\+-[0-9]+$' | sort -V | tail -1)
+        echo "找到编译器: $GCC_NAME"
+        echo "CXX=$GCC_DIR/$GCC_NAME" >> "$GITHUB_ENV"
+
     - name: 使用Make构建
       run: |
         export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/opt/homebrew/lib/pkgconfig"
-        make
-    
+        make CXX="$CXX"
+
     - name: 验证构建结果
       run: |
         echo "=== 验证构建结果 ==="
@@ -143,32 +158,41 @@ jobs:
         echo "macOS可执行文件已成功生成"
         file phone_forensic
         du -h phone_forensic
-        
+
         timeout 5s ./phone_forensic --help 2>&1 | head -20 || \
         timeout 5s ./phone_forensic --version 2>&1 | head -5 || \
         echo "程序运行测试完成"
 
     - name: 运行测试(单元测试 + mock 集成测试)
       run: |
-        # 注:若 Apple clang 不支持 -std=c++26,请 brew install gcc 后指定编译器
-        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_COMPILER="$CXX"
         cmake --build build -j2
         ctest --test-dir build --output-on-failure
 
-  linux-release:
+    - name: 上传macOS可执行文件
+      uses: actions/upload-artifact@v4
+      with:
+        name: lqz-macos-binary
+        path: phone_forensic
+        retention-days: 7
+
+  linux-package:
     name: Linux发行版打包
     runs-on: ubuntu-latest
     needs: [build-and-test-linux]
-    
+
     if: >
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       (github.event_name == 'release') ||
       (github.event_name == 'workflow_dispatch')
-    
+
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+
     steps:
     - name: 检出代码仓库
       uses: actions/checkout@v4
-    
+
     - name: 获取版本号
       id: get-version
       shell: bash
@@ -191,57 +215,58 @@ jobs:
             VERSION="unknown-$(date +%Y%m%d-%H%M%S)"
             ;;
         esac
-        
+
         CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//' | sed 's/^release-//' | tr -cd 'a-zA-Z0-9._-')
         echo "原始版本: $VERSION"
         echo "清理后版本: $CLEAN_VERSION"
-        echo "VERSION=$CLEAN_VERSION" >> "$GITHUB_OUTPUT"
+        echo "version=$CLEAN_VERSION" >> "$GITHUB_OUTPUT"
         echo "VERSION=$CLEAN_VERSION" >> "$GITHUB_ENV"
-    
+
+    - name: 下载Linux可执行文件
+      uses: actions/download-artifact@v4
+      with:
+        name: lqz-linux-binary
+        path: bin
+
     - name: 安装打包工具
       run: |
         sudo apt-get update
-        sudo apt-get install -y dpkg-dev g++-14
-    
-    - name: 构建发布版本
-      run: |
-        make clean
-        CXXFLAGS="-std=c++26 -Wall -O3 -DNDEBUG" make CXX=g++-14
-        strip phone_forensic || echo "strip skipped"
-    
+        sudo apt-get install -y dpkg-dev
+
     - name: 创建DEB软件包
       run: |
+        chmod +x bin/phone_forensic
         mkdir -p package/usr/local/bin package/DEBIAN
-        cp phone_forensic package/usr/local/bin/
-        
+        cp bin/phone_forensic package/usr/local/bin/
+
         cat > package/DEBIAN/control <<EOF
-          Package: lqz-forensic
-          Version: ${{ env.VERSION }}
-          Section: utils
-          Priority: optional
-          Architecture: amd64
-          Maintainer: 钟智强 <johnmelodymel@qq.com>
-          Description: Android Device Forensic Tool
-          灵取证是一款功能强大且专业的安卓设备数据取证工具，专门为执法部门、司法机构和安全调查人员设计开发。
-          支持提取通话记录、短信、照片、视频等数据，严格遵循相关法律法规。
-          EOF
-        
+        Package: lqz-forensic
+        Version: ${{ env.VERSION }}
+        Section: utils
+        Priority: optional
+        Architecture: amd64
+        Maintainer: 钟智强 <johnmelodymel@qq.com>
+        Description: Android Device Forensic Tool
+        灵取证是一款功能强大且专业的安卓设备数据取证工具，专门为执法部门、司法机构和安全调查人员设计开发。
+        支持提取通话记录、短信、照片、视频等数据，严格遵循相关法律法规。
+        EOF
+
         cat > package/DEBIAN/postinst <<EOF
         #!/bin/sh
         set -e
         echo "灵取证 ${{ env.VERSION }} 安装完成"
         echo "运行命令: phone_forensic"
         EOF
-                chmod 755 package/DEBIAN/postinst
-                dpkg-deb --build package lqz-forensic_${{ env.VERSION }}_amd64.deb
+        chmod 755 package/DEBIAN/postinst
+        dpkg-deb --build package lqz-forensic_${{ env.VERSION }}_amd64.deb
 
-            - name: 创建通用压缩包
-              run: |
-                DIR_NAME="lqz-${{ env.VERSION }}-linux-amd64"
-                mkdir -p "${DIR_NAME}"
-                cp phone_forensic README.md LICENSE "${DIR_NAME}/"
+    - name: 创建通用压缩包
+      run: |
+        DIR_NAME="lqz-${{ env.VERSION }}-linux-amd64"
+        mkdir -p "${DIR_NAME}"
+        cp bin/phone_forensic README.md LICENSE "${DIR_NAME}/"
 
-                cat > "${DIR_NAME}/README-zh.txt" <<EOF
+        cat > "${DIR_NAME}/README-zh.txt" <<EOF
         灵取证 ${{ env.VERSION }} - Linux版本
 
         简介:
@@ -264,7 +289,7 @@ jobs:
         免责声明:
         本工具仅供执法部门在法律框架内使用，任何非法使用或滥用概不负责。
         EOF
-        
+
         cat > "${DIR_NAME}/install.sh" <<EOF
         #!/bin/bash
         echo "正在安装灵取证 ${{ env.VERSION }} ..."
@@ -274,54 +299,31 @@ jobs:
         EOF
         chmod +x "${DIR_NAME}/install.sh"
         tar czf "${DIR_NAME}.tar.gz" "${DIR_NAME}/"
-    
-    - name: 上传到GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        files: |
-          lqz-forensic_*.deb
-          lqz-*-linux-amd64.tar.gz
-        tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name || env.VERSION }}
-        name: 灵取证 ${{ env.VERSION }}
-        body: |
-          ## 灵取证 ${{ env.VERSION }}
-          
-          ### Linux版本发布
-          **包含文件:**
-          1. `lqz-forensic_${{ env.VERSION }}_amd64.deb`
-          2. `lqz-${{ env.VERSION }}-linux-amd64.tar.gz`
-          
-          ### 使用说明
-          ```bash
-          # DEB安装
-          sudo dpkg -i lqz-forensic_${{ env.VERSION }}_amd64.deb
-          
-          # 通用包
-          tar -xzf lqz-${{ env.VERSION }}-linux-amd64.tar.gz
-          ./lqz-${{ env.VERSION }}-linux-amd64/phone_forensic
-          ```
-          
-          ---
-          自动生成于: ${{ github.event.repository.pushed_at || github.event.release.published_at }}
-        draft: false
-        prerelease: ${{ contains(env.VERSION, 'beta') || contains(env.VERSION, 'alpha') || contains(env.VERSION, 'rc') }}
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        echo "PACKAGE_FILES=${DIR_NAME}.tar.gz lqz-forensic_${{ env.VERSION }}_amd64.deb" >> "$GITHUB_ENV"
 
-  windows-release:
+    - name: 上传Linux安装包
+      uses: actions/upload-artifact@v4
+      with:
+        name: lqz-linux-package
+        path: |
+          lqz-*-linux-amd64.tar.gz
+          lqz-forensic_*.deb
+        retention-days: 7
+
+  windows-package:
     name: Windows版本打包
     runs-on: windows-latest
     needs: [build-and-test-windows]
-    
+
     if: >
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
       (github.event_name == 'release') ||
       (github.event_name == 'workflow_dispatch')
-    
+
     steps:
     - name: 检出代码仓库
       uses: actions/checkout@v4
-    
+
     - name: 获取版本号
       id: get-version
       shell: bash
@@ -344,33 +346,15 @@ jobs:
             VERSION="unknown-$(date +%Y%m%d-%H%M%S)"
             ;;
         esac
-        
-        CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//' | sed 's/^release-//' | tr -cd 'a-zA-Z0-9._-')
-        echo "VERSION=$CLEAN_VERSION" >> "$GITHUB_OUTPUT"
-        echo "VERSION=$CLEAN_VERSION" >> "$GITHUB_ENV"
-    
-    - name: 设置MSYS2和MinGW环境
-      uses: msys2/setup-msys2@v2
-      with:
-        update: true
-        install: >-
-          mingw-w64-x86_64-gcc
-          mingw-w64-x86_64-sqlite3
-          mingw-w64-x86_64-pkg-config
-    
-    - name: 编译Windows可执行文件
-      shell: msys2 {0}
-      run: |
-        export PKG_CONFIG_PATH="/mingw64/lib/pkgconfig"
-        x86_64-w64-mingw32-g++ -std=c++26 -Wall -O3 -static -Isrc \
-          src/main.cc src/model/model.cc src/view/view.cc src/controller/controller.cc \
-          src/evidence/evidence.cc src/util/sha256.cc src/util/json.cc src/util/args.cc \
-          -o phone_forensic.exe -lsqlite3 -lws2_32 -lole32 -lshell32
 
-        if [ ! -f "phone_forensic.exe" ]; then
-          echo "编译失败"
-          exit 1
-        fi
+        CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//' | sed 's/^release-//' | tr -cd 'a-zA-Z0-9._-')
+        echo "VERSION=$CLEAN_VERSION" >> "$GITHUB_ENV"
+
+    - name: 下载Windows可执行文件
+      uses: actions/download-artifact@v4
+      with:
+        name: lqz-windows-binary
+        path: bin
 
     - name: 创建Windows安装包
       shell: powershell
@@ -378,9 +362,10 @@ jobs:
         $Version = "${{ env.VERSION }}"
         $FolderName = "lqz-$Version-windows-amd64"
         New-Item -ItemType Directory -Force -Path $FolderName | Out-Null
-        
-        Copy-Item "phone_forensic.exe", "README.md", "LICENSE" -Destination $FolderName
-        
+
+        Copy-Item "bin\phone_forensic.exe", "README.md", "LICENSE" -Destination $FolderName
+
+        # Windows PowerShell 5.1 的 -Encoding UTF8 会带 BOM,配合 chcp 65001 正确显示中文
         @"
         @echo off
         chcp 65001 >nul
@@ -393,27 +378,154 @@ jobs:
         echo 按任意键开始运行程序...
         pause >nul
         start phone_forensic.exe
-        "@ | Out-File -FilePath "$FolderName\运行灵取证.bat" -Encoding ASCII
+        "@ | Out-File -FilePath "$FolderName\运行灵取证.bat" -Encoding UTF8
 
         Compress-Archive -Path "$FolderName\*" -DestinationPath "$FolderName.zip"
-    
-    - name: 上传Windows版本到GitHub Release
+
+    - name: 上传Windows安装包
+      uses: actions/upload-artifact@v4
+      with:
+        name: lqz-windows-package
+        path: lqz-*-windows-amd64.zip
+        retention-days: 7
+
+  macos-package:
+    name: macOS版本打包
+    runs-on: macos-latest
+    needs: [build-and-test-macos]
+
+    if: >
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'release') ||
+      (github.event_name == 'workflow_dispatch')
+
+    steps:
+    - name: 检出代码仓库
+      uses: actions/checkout@v4
+
+    - name: 获取版本号
+      id: get-version
+      shell: bash
+      run: |
+        case "${{ github.event_name }}" in
+          "release")
+            VERSION="${{ github.event.release.tag_name }}"
+            ;;
+          "workflow_dispatch")
+            if [ -n "${{ github.event.inputs.version_override }}" ]; then
+              VERSION="${{ github.event.inputs.version_override }}"
+            else
+              VERSION="manual-${{ github.run_number }}-$(date +%Y%m%d)"
+            fi
+            ;;
+          "push")
+            VERSION="${GITHUB_REF#refs/tags/}"
+            ;;
+          *)
+            VERSION="unknown-$(date +%Y%m%d-%H%M%S)"
+            ;;
+        esac
+
+        CLEAN_VERSION=$(echo "$VERSION" | sed 's/^v//' | sed 's/^release-//' | tr -cd 'a-zA-Z0-9._-')
+        echo "VERSION=$CLEAN_VERSION" >> "$GITHUB_ENV"
+
+    - name: 下载macOS可执行文件
+      uses: actions/download-artifact@v4
+      with:
+        name: lqz-macos-binary
+        path: bin
+
+    - name: 创建macOS压缩包
+      run: |
+        ARCH=$(uname -m)
+        DIR_NAME="lqz-${{ env.VERSION }}-macos-${ARCH}"
+        mkdir -p "${DIR_NAME}"
+        chmod +x bin/phone_forensic
+        cp bin/phone_forensic README.md LICENSE "${DIR_NAME}/"
+
+        cat > "${DIR_NAME}/install.sh" <<EOF
+        #!/bin/bash
+        echo "正在安装灵取证 ${{ env.VERSION }} ..."
+        sudo cp phone_forensic /usr/local/bin/
+        sudo chmod +x /usr/local/bin/phone_forensic
+        echo "安装完成！运行命令: phone_forensic"
+        EOF
+        chmod +x "${DIR_NAME}/install.sh"
+        tar czf "${DIR_NAME}.tar.gz" "${DIR_NAME}/"
+
+    - name: 上传macOS安装包
+      uses: actions/upload-artifact@v4
+      with:
+        name: lqz-macos-package
+        path: lqz-*-macos-*.tar.gz
+        retention-days: 7
+
+  publish:
+    name: 发布到GitHub Release
+    runs-on: ubuntu-latest
+    needs: [linux-package, windows-package, macos-package]
+    permissions:
+      contents: write
+
+    if: >
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')) ||
+      (github.event_name == 'release') ||
+      (github.event_name == 'workflow_dispatch')
+
+    steps:
+    - name: 下载各平台安装包
+      uses: actions/download-artifact@v4
+      with:
+        path: dist
+
+    - name: 展平目录并生成SHA256校验和
+      run: |
+        cd dist
+        find . -mindepth 2 -type f -exec mv -f {} . \;
+        find . -mindepth 1 -type d -exec rmdir {} \; 2>/dev/null || true
+        sha256sum * > SHA256SUMS
+        echo "=== SHA256SUMS ==="
+        cat SHA256SUMS
+        ls -la
+
+    - name: 上传到GitHub Release
       uses: softprops/action-gh-release@v1
       with:
-        files: lqz-*-windows-amd64.zip
-        tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || github.ref_name || env.VERSION }}
-        name: 灵取证 ${{ env.VERSION }} (Windows版本)
+        files: |
+          dist/*
+        tag_name: ${{ github.event_name == 'release' && github.event.release.tag_name || (github.event_name == 'push' && github.ref_name || format('v{0}', needs.linux-package.outputs.version)) }}
+        name: 灵取证 ${{ needs.linux-package.outputs.version }}
         body: |
-          ## 灵取证 ${{ env.VERSION }} - Windows版本
-          - `lqz-${{ env.VERSION }}-windows-amd64.zip`
-          
+          ## 灵取证 ${{ needs.linux-package.outputs.version }}
+
+          ### 各平台安装包
+          | 平台 | 文件 | 说明 |
+          | --- | --- | --- |
+          | Ubuntu / Debian | `lqz-forensic_${{ needs.linux-package.outputs.version }}_amd64.deb` | sudo dpkg -i 安装 |
+          | Linux 通用 | `lqz-${{ needs.linux-package.outputs.version }}-linux-amd64.tar.gz` | 解压即用 |
+          | Windows | `lqz-${{ needs.linux-package.outputs.version }}-windows-amd64.zip` | 解压后双击 运行灵取证.bat |
+          | macOS | `lqz-${{ needs.linux-package.outputs.version }}-macos-*.tar.gz` | 解压即用 |
+
+          ### SHA-256 校验和
+          各安装包的 SHA-256 校验和见附件 `SHA256SUMS`。
+
           ### 使用说明
-          1. 解压 ZIP 文件
-          2. 双击 `运行灵取证.bat`
-          
+          ```bash
+          # DEB 安装(Ubuntu/Debian)
+          sudo dpkg -i lqz-forensic_${{ needs.linux-package.outputs.version }}_amd64.deb
+
+          # Linux 通用包
+          tar -xzf lqz-${{ needs.linux-package.outputs.version }}-linux-amd64.tar.gz
+          ./lqz-${{ needs.linux-package.outputs.version }}-linux-amd64/phone_forensic
+
+          # macOS
+          tar -xzf lqz-${{ needs.linux-package.outputs.version }}-macos-*.tar.gz
+          ./lqz-${{ needs.linux-package.outputs.version }}-macos-*/phone_forensic
+          ```
+
           ---
           自动生成于: ${{ github.event.repository.pushed_at || github.event.release.published_at }}
         draft: false
-        prerelease: ${{ contains(env.VERSION, 'beta') || contains(env.VERSION, 'alpha') || contains(env.VERSION, 'rc') }}
+        prerelease: ${{ contains(needs.linux-package.outputs.version, 'beta') || contains(needs.linux-package.outputs.version, 'alpha') || contains(needs.linux-package.outputs.version, 'rc') }}
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
